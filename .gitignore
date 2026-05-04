@@ -8,6 +8,7 @@ dist-packages/
 
 # local app artifacts
 .cse-buddy/
+api/
 POSTMAN_ONBOARDING_SETUP.md
 
 # macOS / editor noise

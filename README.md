@@ -208,7 +208,6 @@ CSE_Buddy/
   electron/                # Electron main process, preload, IPC, services
   src/                     # React renderer, shared contracts, UI logic
   tests/                   # Vitest coverage
-  api/                     # Example/local spec material used by the app
   .github/                 # Workflow-related project files
   package.json
 ```
