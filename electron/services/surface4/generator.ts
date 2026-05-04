@@ -1,4 +1,4 @@
-import { access, copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { access, copyFile, mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import { renderPrValidationWorkflow } from '../../../src/lib/surface4/templates/pr-validation.js';
@@ -16,6 +16,7 @@ import { validateSurface4Inputs } from '../../../src/lib/surface4/validate.js';
 import type {
   GenerateSurface4ArtifactsInput,
   GenerateSurface4ArtifactsResult,
+  ExportSurface4BundleResult,
   LoadSurface4StateInput,
   Surface4GenerationSummary,
   Surface4LoadStateResult
@@ -61,6 +62,42 @@ async function readJsonFile<T>(filePath: string): Promise<T> {
 async function writeText(filePath: string, content: string): Promise<void> {
   await mkdir(path.dirname(filePath), { recursive: true });
   await writeFile(filePath, content, 'utf8');
+}
+
+async function collectFiles(rootDir: string): Promise<string[]> {
+  const entries = await readdir(rootDir, { withFileTypes: true });
+  const files: string[] = [];
+
+  for (const entry of entries) {
+    const entryPath = path.join(rootDir, entry.name);
+    if (entry.isDirectory()) {
+      files.push(...(await collectFiles(entryPath)));
+    } else if (entry.isFile()) {
+      files.push(entryPath);
+    }
+  }
+
+  return files;
+}
+
+async function copyGeneratedBundle(generatedRoot: string, targetDirectory: string): Promise<string[]> {
+  const sourceStats = await stat(generatedRoot);
+  if (!sourceStats.isDirectory()) {
+    throw new Error(`Generated bundle was not found at ${generatedRoot}.`);
+  }
+
+  const copiedFiles: string[] = [];
+  const sourceFiles = await collectFiles(generatedRoot);
+
+  for (const sourceFile of sourceFiles) {
+    const relativePath = path.relative(generatedRoot, sourceFile);
+    const targetPath = path.join(targetDirectory, relativePath);
+    await mkdir(path.dirname(targetPath), { recursive: true });
+    await copyFile(sourceFile, targetPath);
+    copiedFiles.push(targetPath);
+  }
+
+  return copiedFiles;
 }
 
 function withResolvedFlowPath(config: CICDConfig, flowPath: string): CICDConfig {
@@ -184,5 +221,21 @@ export async function getSurface4BundlePaths(serviceKey: string): Promise<{
   return {
     generatedRoot,
     setupDocPath: path.join(generatedRoot, getGeneratedSetupDocRelativePath())
+  };
+}
+
+export async function exportSurface4Bundle(serviceKey: string, targetDirectory: string): Promise<ExportSurface4BundleResult> {
+  if (!targetDirectory) {
+    return {
+      copiedFiles: []
+    };
+  }
+
+  const { generatedRoot } = await getSurface4BundlePaths(serviceKey);
+  const copiedFiles = await copyGeneratedBundle(generatedRoot, targetDirectory);
+
+  return {
+    targetDirectory,
+    copiedFiles
   };
 }

@@ -22,7 +22,7 @@ vi.mock('electron', () => ({
   }
 }));
 
-import { generateSurface4Artifacts, loadSurface4State } from '../electron/services/surface4/generator.js';
+import { exportSurface4Bundle, generateSurface4Artifacts, loadSurface4State } from '../electron/services/surface4/generator.js';
 
 function writeJson(filePath: string, value: unknown): void {
   writeFileSync(filePath, JSON.stringify(value, null, 2), 'utf8');
@@ -155,6 +155,20 @@ describe('Surface 4 generator', () => {
       expect(loadedState.config?.flowPath).toBe(flowPath);
       expect(loadedState.generatedSpecPath).toContain('/.cse-buddy/surface4/payments/generated/api/openapi.yaml');
       expect(loadedState.generatedFlowPath).toContain('/.cse-buddy/surface4/payments/generated/.cse-buddy/flows/payments/flow.yaml');
+
+      const exportTarget = path.join(workspace, 'target-repo');
+      const exportResult = await exportSurface4Bundle('payments', exportTarget);
+
+      expect(exportResult.targetDirectory).toBe(exportTarget);
+      expect(exportResult.copiedFiles.length).toBe(5);
+      expect(readFileSync(path.join(exportTarget, 'api', 'openapi.yaml'), 'utf8')).toContain('Payments API');
+      expect(readFileSync(path.join(exportTarget, '.cse-buddy', 'flows', 'payments', 'flow.yaml'), 'utf8')).toContain(
+        'Payments API happy path'
+      );
+      expect(readFileSync(path.join(exportTarget, '.github', 'workflows', 'postman-pr-validation.yml'), 'utf8')).toContain(
+        'Postman PR Validation'
+      );
+      expect(readFileSync(path.join(exportTarget, 'README.md'), 'utf8')).toContain('How To Use These Artifacts');
     } finally {
       electronState.appDataPath = '';
       rmSync(appDataPath, { recursive: true, force: true });

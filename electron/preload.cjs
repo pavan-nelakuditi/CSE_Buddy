@@ -36,7 +36,8 @@ const surface4Channels = {
   loadState: 'surface4:load-state',
   generateArtifacts: 'surface4:generate-artifacts',
   revealBundle: 'surface4:reveal-bundle',
-  openReadme: 'surface4:open-readme'
+  openReadme: 'surface4:open-readme',
+  exportBundle: 'surface4:export-bundle'
 };
 
 function requireTargetPath(targetPath, actionLabel) {
@@ -90,5 +91,6 @@ contextBridge.exposeInMainWorld('surface4', {
   loadState: (input) => ipcRenderer.invoke(surface4Channels.loadState, input),
   generateArtifacts: (input) => ipcRenderer.invoke(surface4Channels.generateArtifacts, input),
   revealBundle: (serviceKey) => ipcRenderer.invoke(surface4Channels.revealBundle, normalizeServiceKey(serviceKey, 'Reveal bundle')),
-  openReadme: (serviceKey) => ipcRenderer.invoke(surface4Channels.openReadme, normalizeServiceKey(serviceKey, 'Open README'))
+  openReadme: (serviceKey) => ipcRenderer.invoke(surface4Channels.openReadme, normalizeServiceKey(serviceKey, 'Open README')),
+  exportBundle: (serviceKey) => ipcRenderer.invoke(surface4Channels.exportBundle, normalizeServiceKey(serviceKey, 'Export bundle'))
 });

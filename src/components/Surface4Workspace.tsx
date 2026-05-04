@@ -162,6 +162,23 @@ export function Surface4Workspace({ specContext }: Props): ReactElement {
     }
   }
 
+  async function handleExportBundle(): Promise<void> {
+    try {
+      setLoading('Exporting generated bundle...');
+      setError('');
+      const result = await window.surface4.exportBundle(specContext.serviceKey);
+      if (!result.targetDirectory) {
+        setStatus('Bundle export canceled.');
+      } else {
+        setStatus(`Bundle exported to ${result.targetDirectory} (${result.copiedFiles.length} files).`);
+      }
+    } catch (exportError) {
+      setError(createErrorMessage(exportError));
+    } finally {
+      setLoading('');
+    }
+  }
+
   const ready = Boolean(state?.flowExists && state?.configExists && state?.config);
   const manifestEntries = (state?.expectedFiles ?? []).map(describeGeneratedFile);
   const generatedEntries = (state?.summary?.files ?? []).map(describeGeneratedFile);
@@ -187,6 +204,9 @@ export function Surface4Workspace({ specContext }: Props): ReactElement {
               </button>
               <button type="button" onClick={() => void handleOpenGeneratedReadme()}>
                 Open README
+              </button>
+              <button type="button" className="primary" onClick={() => void handleExportBundle()}>
+                Export to folder
               </button>
             </>
           ) : null}
@@ -259,6 +279,7 @@ export function Surface4Workspace({ specContext }: Props): ReactElement {
               <div className="surface4-card">
                 <ul className="surface4-list">
                   <li>Open the generated <code>README.md</code> in the staged bundle.</li>
+                  <li>Use <code>Export to folder</code> to place the repo-ready files into a new or existing service repo.</li>
                   <li>Add the required GitHub secrets: <code>POSTMAN_API_KEY</code> and <code>POSTMAN_ACCESS_TOKEN</code>.</li>
                   <li>Review the generated workflows and staged service files before copying them into a target repo.</li>
                   <li>Use a safe first run with <code>repo_write_mode=commit-only</code> before switching to push-based automation.</li>

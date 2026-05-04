@@ -40,11 +40,17 @@ export type GenerateSurface4ArtifactsResult = {
   summary: Surface4GenerationSummary;
 };
 
+export type ExportSurface4BundleResult = {
+  targetDirectory?: string;
+  copiedFiles: string[];
+};
+
 export type Surface4Api = {
   loadState: (input: LoadSurface4StateInput) => Promise<Surface4LoadStateResult>;
   generateArtifacts: (input: GenerateSurface4ArtifactsInput) => Promise<GenerateSurface4ArtifactsResult>;
   revealBundle: (serviceKey: string) => Promise<void>;
   openReadme: (serviceKey: string) => Promise<void>;
+  exportBundle: (serviceKey: string) => Promise<ExportSurface4BundleResult>;
 };
 
 declare global {

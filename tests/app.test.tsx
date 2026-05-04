@@ -36,7 +36,8 @@ const mockSurface4: Surface4Api = {
   loadState: vi.fn(),
   generateArtifacts: vi.fn(),
   revealBundle: vi.fn(),
-  openReadme: vi.fn()
+  openReadme: vi.fn(),
+  exportBundle: vi.fn()
 };
 
 const mockWorkspace: WorkspaceApi = {
@@ -121,6 +122,10 @@ describe('App', () => {
     });
     vi.mocked(mockSurface4.revealBundle).mockResolvedValue();
     vi.mocked(mockSurface4.openReadme).mockResolvedValue();
+    vi.mocked(mockSurface4.exportBundle).mockResolvedValue({
+      targetDirectory: '/tmp/target-repo',
+      copiedFiles: ['/tmp/target-repo/README.md']
+    });
   });
 
   it('shows the workspace picker when no workspace is active and opens a recent workspace', async () => {

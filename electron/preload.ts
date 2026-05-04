@@ -65,6 +65,12 @@ const surface4Api: Surface4Api = {
       throw new Error('Open README service key is unavailable.');
     }
     return ipcRenderer.invoke(surface4Channels.openReadme, serviceKey);
+  },
+  exportBundle: (serviceKey) => {
+    if (!serviceKey) {
+      throw new Error('Export bundle service key is unavailable.');
+    }
+    return ipcRenderer.invoke(surface4Channels.exportBundle, serviceKey);
   }
 };
 
