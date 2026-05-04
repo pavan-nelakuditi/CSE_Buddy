@@ -288,7 +288,12 @@ describe('App', () => {
     await userEvent.click(await screen.findByRole('button', { name: /browse file/i }));
     await userEvent.click(await screen.findByRole('button', { name: /import file/i }));
     await userEvent.click(await screen.findByRole('button', { name: /generate smoke flow/i }));
-    await userEvent.click(await screen.findByRole('button', { name: /export flow\.yaml/i }));
+    await userEvent.click(await screen.findByRole('button', { name: /review flow/i }));
+    expect(await screen.findByRole('heading', { name: /review smoke flow/i })).toBeInTheDocument();
+    await userEvent.click(await screen.findByRole('button', { name: /back to edit/i }));
+    expect(await screen.findByRole('heading', { name: /operation library/i })).toBeInTheDocument();
+    await userEvent.click(await screen.findByRole('button', { name: /review flow/i }));
+    await userEvent.click(await screen.findByRole('button', { name: /confirm and export flow\.yaml/i }));
 
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: 'Surface 3' })).toBeInTheDocument();
@@ -366,7 +371,8 @@ describe('App', () => {
     await userEvent.click(await screen.findByRole('button', { name: /browse file/i }));
     await userEvent.click(await screen.findByRole('button', { name: /import file/i }));
     await userEvent.click(await screen.findByRole('button', { name: /generate smoke flow/i }));
-    await userEvent.click(await screen.findByRole('button', { name: /export flow\.yaml/i }));
+    await userEvent.click(await screen.findByRole('button', { name: /review flow/i }));
+    await userEvent.click(await screen.findByRole('button', { name: /confirm and export flow\.yaml/i }));
     await userEvent.type(await screen.findByLabelText(/dev runtime url/i), 'https://dev-api.example.com');
     await userEvent.type(screen.getByLabelText(/test runtime url/i), 'https://test-api.example.com');
     await userEvent.type(screen.getByLabelText(/stage runtime url/i), 'https://stage-api.example.com');
