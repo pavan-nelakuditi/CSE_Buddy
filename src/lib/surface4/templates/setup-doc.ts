@@ -39,6 +39,32 @@ This generated bundle came from **CSE Buddy Surface 4**. It is designed to help 
 - \`README.md\`
   - This guide.
 
+## How To Use These Artifacts
+
+You can use this bundle in one of two ways.
+
+### Option A: Start a new repository from the bundle
+
+Use this path when the service does not already have a GitHub repository or when you want a clean onboarding harness.
+
+1. create a new GitHub repository for the service
+2. place the generated files at the same paths shown in this README
+3. commit the generated spec, flow file, workflow files, and this README
+4. add the required GitHub secrets
+5. run the onboarding workflow manually first
+
+### Option B: Add the artifacts to an existing service repository
+
+Use this path when the service already has application code and a repo.
+
+1. add \`${input.repoSpecPath}\` to the repo, or update the workflow if your spec already lives somewhere else
+2. add \`${input.repoFlowPath}\` exactly where the onboarding workflow expects it
+3. add the generated workflow files under \`.github/workflows/\`
+4. add the required GitHub secrets
+5. run the onboarding workflow manually first
+
+If you move either the spec or flow file, update the workflow inputs so \`spec-path\`, \`spec-url\`, and \`flow-path\` still point at the real files.
+
 ## What You Need Before Running It
 
 Add these GitHub repository secrets:

@@ -145,6 +145,37 @@ Surface 1 validates and normalizes the service spec, then writes a `SpecContext`
 
 Surface 2 generates one draft smoke flow per service, lets the user refine it, and exports `flow.yaml`.
 
+The `flow.yaml` file is the approved happy-path journey for the service. It is intended to become the source of truth for the Postman Smoke collection structure:
+
+- which operations belong in the smoke flow
+- the order those operations should run in
+- how values from earlier responses bind into later requests
+- which response fields should be extracted as variables
+- which smoke checks the generated Postman collection should perform
+
+To generate it:
+
+1. import or open a service from Surface 1
+2. move to Surface 2
+3. click `Generate smoke flow`
+4. review the generated steps, bindings, and extracts
+5. adjust the flow if needed
+6. click `Export flow.yaml`
+
+Surface 2 writes the exported flow to the selected workspace:
+
+```text
+.cse-buddy/surface2/<service-key>/flow.yaml
+```
+
+Surface 4 also stages a repo-ready copy inside its generated bundle:
+
+```text
+.cse-buddy/surface4/<service-key>/generated/.cse-buddy/flows/<service-key>/flow.yaml
+```
+
+That staged copy is the one referenced by the generated GitHub onboarding workflow. The `postman-smoke-flow-action` reads it and applies the approved journey to the Smoke collection created by bootstrap.
+
 ### Surface 3: Onboarding Config
 
 Surface 3 captures:

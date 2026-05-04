@@ -76,6 +76,10 @@ describe('Surface 4 templates', () => {
 
     expect(content).toContain('# Payments API Postman Onboarding Bundle');
     expect(content).toContain('`POSTMAN_API_KEY`');
+    expect(content).toContain('## How To Use These Artifacts');
+    expect(content).toContain('Option A: Start a new repository from the bundle');
+    expect(content).toContain('Option B: Add the artifacts to an existing service repository');
+    expect(content).toContain('If you move either the spec or flow file');
     expect(content).toContain('`dev`: https://dev-api.example.com');
     expect(content).toContain('`prod`: https://api.example.com');
     expect(content).toContain('## Recommended First Run');
