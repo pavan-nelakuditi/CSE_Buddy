@@ -2,6 +2,8 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
+import { getRequiredWorkspaceRoot } from '../workspace/state.js';
+
 export type ServicePaths = {
   serviceKey: string;
   rootDir: string;
@@ -11,10 +13,8 @@ export type ServicePaths = {
   normalizedSpecPath: string;
 };
 
-const SURFACE1_ROOT = path.resolve(process.cwd(), '.cse-buddy', 'surface1');
-
-export function getSurface1Root(): string {
-  return SURFACE1_ROOT;
+export async function getSurface1Root(): Promise<string> {
+  return path.resolve(await getRequiredWorkspaceRoot(), '.cse-buddy', 'surface1');
 }
 
 export function slugify(value: string): string {
@@ -33,8 +33,8 @@ export function buildServiceKey(name: string, suffix?: string): string {
   return parts.join('--');
 }
 
-export function getServicePaths(serviceKey: string): ServicePaths {
-  const rootDir = path.join(getSurface1Root(), serviceKey);
+export async function getServicePaths(serviceKey: string): Promise<ServicePaths> {
+  const rootDir = path.join(await getSurface1Root(), serviceKey);
   return {
     serviceKey,
     rootDir,
@@ -62,8 +62,8 @@ export async function writeText(filePath: string, content: string): Promise<void
   await writeFile(filePath, content, 'utf8');
 }
 
-export function getBulkCatalogPath(): string {
-  return path.join(getSurface1Root(), 'service-catalog.json');
+export async function getBulkCatalogPath(): Promise<string> {
+  return path.join(await getSurface1Root(), 'service-catalog.json');
 }
 
 export function getAwsHome(): string {

@@ -10,7 +10,7 @@ export async function importUploadedSpec(filePath: string): Promise<ImportUpload
   const normalized = normalizeOpenApiSpec(rawContent, filePath, 'upload');
   const extension = path.extname(filePath).toLowerCase() || '.yaml';
   const serviceKey = buildServiceKey(normalized.specContext.document.name);
-  const servicePaths = getServicePaths(serviceKey);
+  const servicePaths = await getServicePaths(serviceKey);
 
   await ensureServiceDirectories(servicePaths);
 

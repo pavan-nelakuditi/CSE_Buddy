@@ -53,7 +53,19 @@ const surface3Api: Surface3Api = {
 
 const surface4Api: Surface4Api = {
   loadState: (input) => ipcRenderer.invoke(surface4Channels.loadState, input),
-  generateArtifacts: (input) => ipcRenderer.invoke(surface4Channels.generateArtifacts, input)
+  generateArtifacts: (input) => ipcRenderer.invoke(surface4Channels.generateArtifacts, input),
+  revealBundle: (serviceKey) => {
+    if (!serviceKey) {
+      throw new Error('Reveal bundle service key is unavailable.');
+    }
+    return ipcRenderer.invoke(surface4Channels.revealBundle, serviceKey);
+  },
+  openReadme: (serviceKey) => {
+    if (!serviceKey) {
+      throw new Error('Open README service key is unavailable.');
+    }
+    return ipcRenderer.invoke(surface4Channels.openReadme, serviceKey);
+  }
 };
 
 contextBridge.exposeInMainWorld('surface2', surface2Api);

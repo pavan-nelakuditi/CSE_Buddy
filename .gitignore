@@ -4,6 +4,7 @@ node_modules/
 # build output
 dist-electron/
 dist-renderer/
+dist-packages/
 
 # local app artifacts
 .cse-buddy/

@@ -1,6 +1,8 @@
 {
   "name": "cse-buddy",
   "version": "0.1.0",
+  "description": "Workspace-first desktop app for turning one API service into a Postman onboarding bundle.",
+  "author": "Postman",
   "private": true,
   "type": "module",
   "main": "dist-electron/electron/main.js",
@@ -10,9 +12,35 @@
     "build:renderer": "vite build",
     "dev:electron": "tsc -p tsconfig.electron.json --watch --preserveWatchOutput",
     "dev:renderer": "vite",
+    "dist:dir": "npm run build && electron-builder --dir --mac",
+    "dist:mac": "npm run build && electron-builder --mac dmg zip",
     "start": "npm run build && electron .",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.electron.json --noEmit"
+  },
+  "build": {
+    "appId": "com.postman.cse-buddy",
+    "productName": "CSE Buddy",
+    "asar": true,
+    "directories": {
+      "output": "dist-packages",
+      "buildResources": "build"
+    },
+    "files": [
+      "dist-electron/**/*",
+      "dist-renderer/**/*",
+      "electron/preload.cjs",
+      "build/**/*",
+      "package.json"
+    ],
+    "mac": {
+      "category": "public.app-category.developer-tools",
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "icon": "build/icon.png"
+    }
   },
   "dependencies": {
     "@aws-sdk/client-api-gateway": "^3.821.0",
@@ -33,6 +61,7 @@
     "@types/react-dom": "^19.1.2",
     "@vitejs/plugin-react": "^4.4.1",
     "electron": "^35.5.1",
+    "electron-builder": "^24.13.3",
     "jsdom": "^26.1.0",
     "typescript": "^5.8.3",
     "vite": "^6.3.5",

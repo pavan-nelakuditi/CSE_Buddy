@@ -24,7 +24,7 @@ async function persistSpecContext(
 ): Promise<SpecContext> {
   const normalized = normalizeOpenApiSpec(specYaml, sourcePathLabel, source);
   const serviceKey = serviceKeyHint ?? buildServiceKey(serviceNameHint ?? normalized.specContext.document.name);
-  const servicePaths = getServicePaths(serviceKey);
+  const servicePaths = await getServicePaths(serviceKey);
 
   await ensureServiceDirectories(servicePaths);
   const sourcePath = path.join(servicePaths.sourceDir, sourceFileName);
@@ -60,7 +60,7 @@ export async function importAwsSpec(input: ImportAwsSpecInput): Promise<SpecCont
     stage: input.stage
   };
 
-  const stored = getServicePaths(buildServiceKey(input.gatewayId, input.stage));
+  const stored = await getServicePaths(buildServiceKey(input.gatewayId, input.stage));
   await writeJson(stored.specContextPath, specContext);
   return specContext;
 }
@@ -92,7 +92,7 @@ async function buildCatalogEntryForImportedService(
     stage
   };
 
-  const servicePaths = getServicePaths(serviceKey);
+  const servicePaths = await getServicePaths(serviceKey);
   await writeJson(servicePaths.specContextPath, specContext);
 
   return {
@@ -146,7 +146,7 @@ export async function importAllAwsSpecs(input: ImportAllAwsSpecsInput): Promise<
   }
 
   const catalog = buildServiceCatalog(input.region, input.profile, entries);
-  await writeJson(getBulkCatalogPath(), catalog);
+  await writeJson(await getBulkCatalogPath(), catalog);
   return { catalog };
 }
 

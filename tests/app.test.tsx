@@ -8,6 +8,7 @@ import type { Surface2Api } from '../src/shared/surface2.js';
 import type { Surface3Api } from '../src/shared/surface3.js';
 import type { Surface4Api } from '../src/shared/surface4.js';
 import type { SpecContext } from '../src/shared/surface1.js';
+import type { WorkspaceApi } from '../src/shared/workspace.js';
 
 const mockSurface1: Surface1Api = {
   pickOpenApiFile: vi.fn(),
@@ -33,16 +34,56 @@ const mockSurface3: Surface3Api = {
 
 const mockSurface4: Surface4Api = {
   loadState: vi.fn(),
-  generateArtifacts: vi.fn()
+  generateArtifacts: vi.fn(),
+  revealBundle: vi.fn(),
+  openReadme: vi.fn()
+};
+
+const mockWorkspace: WorkspaceApi = {
+  chooseWorkspace: vi.fn(),
+  createWorkspace: vi.fn(),
+  openWorkspace: vi.fn(),
+  getWorkspaceState: vi.fn(),
+  clearWorkspace: vi.fn(),
+  openPath: vi.fn(),
+  revealPath: vi.fn()
 };
 
 describe('App', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    window.workspace = mockWorkspace;
     window.surface1 = mockSurface1;
     window.surface2 = mockSurface2;
     window.surface3 = mockSurface3;
     window.surface4 = mockSurface4;
+    vi.mocked(mockWorkspace.getWorkspaceState).mockResolvedValue({
+      currentWorkspacePath: '/tmp/cse-buddy-workspace',
+      recentWorkspaces: ['/tmp/cse-buddy-workspace']
+    });
+    vi.mocked(mockWorkspace.chooseWorkspace).mockResolvedValue({
+      workspacePath: '/tmp/cse-buddy-workspace',
+      state: {
+        currentWorkspacePath: '/tmp/cse-buddy-workspace',
+        recentWorkspaces: ['/tmp/cse-buddy-workspace']
+      }
+    });
+    vi.mocked(mockWorkspace.createWorkspace).mockResolvedValue({
+      workspacePath: '/tmp/cse-buddy-workspace',
+      state: {
+        currentWorkspacePath: '/tmp/cse-buddy-workspace',
+        recentWorkspaces: ['/tmp/cse-buddy-workspace']
+      }
+    });
+    vi.mocked(mockWorkspace.openWorkspace).mockResolvedValue({
+      currentWorkspacePath: '/tmp/cse-buddy-workspace',
+      recentWorkspaces: ['/tmp/cse-buddy-workspace']
+    });
+    vi.mocked(mockWorkspace.clearWorkspace).mockResolvedValue({
+      recentWorkspaces: ['/tmp/cse-buddy-workspace']
+    });
+    vi.mocked(mockWorkspace.openPath).mockResolvedValue();
+    vi.mocked(mockWorkspace.revealPath).mockResolvedValue();
     vi.mocked(mockSurface1.listAwsProfiles).mockResolvedValue([{ name: 'sandbox', source: 'config' }]);
     vi.mocked(mockSurface2.saveDraft).mockResolvedValue({ draftPath: '/tmp/draft-flow.json' });
     vi.mocked(mockSurface2.exportFlow).mockResolvedValue({
@@ -77,6 +118,28 @@ describe('App', () => {
         generatedSpecPath: '/tmp/generated/api/openapi.yaml',
         generatedFlowPath: '/tmp/generated/.cse-buddy/flows/payments/flow.yaml'
       }
+    });
+    vi.mocked(mockSurface4.revealBundle).mockResolvedValue();
+    vi.mocked(mockSurface4.openReadme).mockResolvedValue();
+  });
+
+  it('shows the workspace picker when no workspace is active and opens a recent workspace', async () => {
+    vi.mocked(mockWorkspace.getWorkspaceState).mockResolvedValue({
+      recentWorkspaces: ['/tmp/demo-workspace']
+    });
+    vi.mocked(mockWorkspace.openWorkspace).mockResolvedValue({
+      currentWorkspacePath: '/tmp/demo-workspace',
+      recentWorkspaces: ['/tmp/demo-workspace']
+    });
+
+    render(<App />);
+
+    expect(await screen.findByRole('heading', { name: 'Choose a workspace' })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /demo-workspace/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Surface 1' })).toBeInTheDocument();
+      expect(screen.getByText('/tmp/demo-workspace')).toBeInTheDocument();
     });
   });
 
@@ -119,8 +182,8 @@ describe('App', () => {
 
     render(<App />);
 
-    await userEvent.click(screen.getByRole('button', { name: /browse file/i }));
-    await userEvent.click(screen.getByRole('button', { name: /import file/i }));
+    await userEvent.click(await screen.findByRole('button', { name: /browse file/i }));
+    await userEvent.click(await screen.findByRole('button', { name: /import file/i }));
 
     expect(await screen.findByText('Active service')).toBeInTheDocument();
     expect(screen.getByText('Generate a draft')).toBeInTheDocument();
@@ -217,8 +280,8 @@ describe('App', () => {
 
     render(<App />);
 
-    await userEvent.click(screen.getByRole('button', { name: /browse file/i }));
-    await userEvent.click(screen.getByRole('button', { name: /import file/i }));
+    await userEvent.click(await screen.findByRole('button', { name: /browse file/i }));
+    await userEvent.click(await screen.findByRole('button', { name: /import file/i }));
     await userEvent.click(await screen.findByRole('button', { name: /generate smoke flow/i }));
     await userEvent.click(await screen.findByRole('button', { name: /export flow\.yaml/i }));
 
@@ -295,8 +358,8 @@ describe('App', () => {
 
     render(<App />);
 
-    await userEvent.click(screen.getByRole('button', { name: /browse file/i }));
-    await userEvent.click(screen.getByRole('button', { name: /import file/i }));
+    await userEvent.click(await screen.findByRole('button', { name: /browse file/i }));
+    await userEvent.click(await screen.findByRole('button', { name: /import file/i }));
     await userEvent.click(await screen.findByRole('button', { name: /generate smoke flow/i }));
     await userEvent.click(await screen.findByRole('button', { name: /export flow\.yaml/i }));
     await userEvent.type(await screen.findByLabelText(/dev runtime url/i), 'https://dev-api.example.com');
@@ -391,8 +454,8 @@ describe('App', () => {
 
     render(<App />);
 
-    await userEvent.click(screen.getByRole('button', { name: /import from aws api gateway/i }));
-    await userEvent.click(screen.getByRole('button', { name: /import all detected services/i }));
+    await userEvent.click(await screen.findByRole('button', { name: /import from aws api gateway/i }));
+    await userEvent.click(await screen.findByRole('button', { name: /import all detected services/i }));
     await userEvent.click(screen.getAllByRole('button', { name: /^import all detected services$/i })[1]!);
 
     expect(await screen.findByText('Bulk import catalog')).toBeInTheDocument();

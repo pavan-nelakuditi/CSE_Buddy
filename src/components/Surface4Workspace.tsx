@@ -144,6 +144,24 @@ export function Surface4Workspace({ specContext }: Props): ReactElement {
     }
   }
 
+  async function handleRevealGeneratedBundle(): Promise<void> {
+    try {
+      setError('');
+      await window.surface4.revealBundle(specContext.serviceKey);
+    } catch (revealError) {
+      setError(createErrorMessage(revealError));
+    }
+  }
+
+  async function handleOpenGeneratedReadme(): Promise<void> {
+    try {
+      setError('');
+      await window.surface4.openReadme(specContext.serviceKey);
+    } catch (openError) {
+      setError(createErrorMessage(openError));
+    }
+  }
+
   const ready = Boolean(state?.flowExists && state?.configExists && state?.config);
   const manifestEntries = (state?.expectedFiles ?? []).map(describeGeneratedFile);
   const generatedEntries = (state?.summary?.files ?? []).map(describeGeneratedFile);
@@ -162,6 +180,16 @@ export function Surface4Workspace({ specContext }: Props): ReactElement {
           <button type="button" className="primary" onClick={() => void handleGenerate()} disabled={!ready}>
             Generate Git artifacts
           </button>
+          {state?.summary ? (
+            <>
+              <button type="button" onClick={() => void handleRevealGeneratedBundle()}>
+                Reveal bundle
+              </button>
+              <button type="button" onClick={() => void handleOpenGeneratedReadme()}>
+                Open README
+              </button>
+            </>
+          ) : null}
         </div>
       </div>
 
@@ -209,11 +237,21 @@ export function Surface4Workspace({ specContext }: Props): ReactElement {
                   <strong>Files location</strong>
                   <p>The full onboarding bundle has been staged for this service here.</p>
                   <code>{generatedRoot}</code>
+                  <div className="inline-actions">
+                    <button type="button" onClick={() => void handleRevealGeneratedBundle()}>
+                      Reveal bundle
+                    </button>
+                  </div>
                 </div>
                 <div className="surface4-card">
                   <strong>README</strong>
                   <p>Open this first for the workflow steps, secrets, and first-run guidance.</p>
                   <code>{setupDocPath}</code>
+                  <div className="inline-actions">
+                    <button type="button" onClick={() => void handleOpenGeneratedReadme()}>
+                      Open README
+                    </button>
+                  </div>
                 </div>
               </div>
 

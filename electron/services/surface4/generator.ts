@@ -22,25 +22,26 @@ import type {
 } from '../../../src/shared/surface4.js';
 import type { CICDConfig } from '../../../src/shared/surface3.js';
 import { writeJson } from '../surface1/paths.js';
+import { getRequiredWorkspaceRoot } from '../workspace/state.js';
 
-function getSurface4Root(): string {
-  return path.resolve(process.cwd(), '.cse-buddy', 'surface4');
+async function getSurface4Root(): Promise<string> {
+  return path.resolve(await getRequiredWorkspaceRoot(), '.cse-buddy', 'surface4');
 }
 
-function getServiceSurface4Dir(serviceKey: string): string {
-  return path.join(getSurface4Root(), serviceKey);
+async function getServiceSurface4Dir(serviceKey: string): Promise<string> {
+  return path.join(await getSurface4Root(), serviceKey);
 }
 
-function getSummaryPath(serviceKey: string): string {
-  return path.join(getServiceSurface4Dir(serviceKey), 'generation-summary.json');
+async function getSummaryPath(serviceKey: string): Promise<string> {
+  return path.join(await getServiceSurface4Dir(serviceKey), 'generation-summary.json');
 }
 
-function getGeneratedRoot(serviceKey: string): string {
-  return path.join(getServiceSurface4Dir(serviceKey), 'generated');
+async function getGeneratedRoot(serviceKey: string): Promise<string> {
+  return path.join(await getServiceSurface4Dir(serviceKey), 'generated');
 }
 
-function getSurface3ConfigPath(serviceKey: string): string {
-  return path.resolve(process.cwd(), '.cse-buddy', 'surface3', serviceKey, 'cicd-config.json');
+async function getSurface3ConfigPath(serviceKey: string): Promise<string> {
+  return path.resolve(await getRequiredWorkspaceRoot(), '.cse-buddy', 'surface3', serviceKey, 'cicd-config.json');
 }
 
 async function exists(filePath: string): Promise<boolean> {
@@ -74,9 +75,9 @@ function withResolvedFlowPath(config: CICDConfig, flowPath: string): CICDConfig 
 }
 
 export async function loadSurface4State(input: LoadSurface4StateInput): Promise<Surface4LoadStateResult> {
-  const configPath = getSurface3ConfigPath(input.serviceKey);
-  const summaryPath = getSummaryPath(input.serviceKey);
-  const generatedRoot = getGeneratedRoot(input.serviceKey);
+  const configPath = await getSurface3ConfigPath(input.serviceKey);
+  const summaryPath = await getSummaryPath(input.serviceKey);
+  const generatedRoot = await getGeneratedRoot(input.serviceKey);
   const generatedSpecPath = path.join(generatedRoot, getGeneratedSpecRelativePath());
   const generatedFlowPath = path.join(generatedRoot, getGeneratedFlowRelativePath(input.serviceKey));
   const expectedFiles = [
@@ -125,13 +126,13 @@ export async function generateSurface4Artifacts(input: GenerateSurface4Artifacts
     throw new Error(`Normalized spec was not found at ${input.specContext.document.normalizedPath}.`);
   }
 
-  const generatedRoot = getGeneratedRoot(input.specContext.serviceKey);
+  const generatedRoot = await getGeneratedRoot(input.specContext.serviceKey);
   const generatedSpecPath = path.join(generatedRoot, getGeneratedSpecRelativePath());
   const generatedFlowPath = path.join(generatedRoot, getGeneratedFlowRelativePath(input.specContext.serviceKey));
   const prWorkflowPath = path.join(generatedRoot, getGeneratedPrWorkflowRelativePath());
   const onboardingWorkflowPath = path.join(generatedRoot, getGeneratedOnboardingWorkflowRelativePath());
   const setupDocPath = path.join(generatedRoot, getGeneratedSetupDocRelativePath());
-  const summaryPath = getSummaryPath(input.specContext.serviceKey);
+  const summaryPath = await getSummaryPath(input.specContext.serviceKey);
 
   await mkdir(path.dirname(generatedSpecPath), { recursive: true });
   await mkdir(path.dirname(generatedFlowPath), { recursive: true });
@@ -172,5 +173,16 @@ export async function generateSurface4Artifacts(input: GenerateSurface4Artifacts
   return {
     summaryPath,
     summary
+  };
+}
+
+export async function getSurface4BundlePaths(serviceKey: string): Promise<{
+  generatedRoot: string;
+  setupDocPath: string;
+}> {
+  const generatedRoot = await getGeneratedRoot(serviceKey);
+  return {
+    generatedRoot,
+    setupDocPath: path.join(generatedRoot, getGeneratedSetupDocRelativePath())
   };
 }

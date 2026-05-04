@@ -111,6 +111,81 @@ code {
   gap: 1.35rem;
 }
 
+.workspace-launch-shell {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 2rem;
+}
+
+.workspace-launch-card,
+.workspace-banner {
+  border: 1px solid rgba(214, 220, 229, 0.92);
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 14px 32px rgba(17, 24, 39, 0.05);
+}
+
+.workspace-launch-card {
+  width: min(760px, 100%);
+  padding: 1.6rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.workspace-launch-card h1,
+.workspace-banner h2 {
+  margin: 0;
+  font-family: "Iowan Old Style", "Palatino Linotype", serif;
+}
+
+.workspace-launch-card p,
+.workspace-banner p {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.launch-actions,
+.workspace-recent-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+
+.workspace-recent-list {
+  border-top: 1px solid rgba(214, 220, 229, 0.92);
+  padding-top: 1rem;
+}
+
+.workspace-recent-item {
+  border-radius: 18px;
+  justify-content: flex-start;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.workspace-recent-item span,
+.muted {
+  color: var(--ink-soft);
+}
+
+.workspace-recent-item span {
+  overflow-wrap: anywhere;
+}
+
+.workspace-banner {
+  padding: 1.2rem 1.4rem;
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: center;
+}
+
 .eyebrow {
   text-transform: uppercase;
   letter-spacing: 0.16em;

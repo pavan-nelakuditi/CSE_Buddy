@@ -43,6 +43,8 @@ export type GenerateSurface4ArtifactsResult = {
 export type Surface4Api = {
   loadState: (input: LoadSurface4StateInput) => Promise<Surface4LoadStateResult>;
   generateArtifacts: (input: GenerateSurface4ArtifactsInput) => Promise<GenerateSurface4ArtifactsResult>;
+  revealBundle: (serviceKey: string) => Promise<void>;
+  openReadme: (serviceKey: string) => Promise<void>;
 };
 
 declare global {

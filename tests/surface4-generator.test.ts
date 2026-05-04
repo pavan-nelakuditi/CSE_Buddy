@@ -2,23 +2,48 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import os from 'node:os';
 import path from 'node:path';
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
-import { generateSurface4Artifacts, loadSurface4State } from '../electron/services/surface4/generator.js';
 import type { SpecContext } from '../src/shared/surface1.js';
 import type { CICDConfig } from '../src/shared/surface3.js';
+
+const electronState = vi.hoisted(() => ({
+  appDataPath: ''
+}));
+
+vi.mock('electron', () => ({
+  app: {
+    getPath: (key: string) => {
+      if (key !== 'userData') {
+        throw new Error(`Unexpected Electron app path request: ${key}`);
+      }
+      return electronState.appDataPath;
+    }
+  }
+}));
+
+import { generateSurface4Artifacts, loadSurface4State } from '../electron/services/surface4/generator.js';
 
 function writeJson(filePath: string, value: unknown): void {
   writeFileSync(filePath, JSON.stringify(value, null, 2), 'utf8');
 }
 
+function writeWorkspaceState(appDataPath: string, workspacePath: string): void {
+  mkdirSync(appDataPath, { recursive: true });
+  writeJson(path.join(appDataPath, 'workspace-state.json'), {
+    currentWorkspacePath: workspacePath,
+    recentWorkspaces: [workspacePath]
+  });
+}
+
 describe('Surface 4 generator', () => {
   it('writes a service-scoped generated bundle and a generation summary', async () => {
     const workspace = mkdtempSync(path.join(os.tmpdir(), 'surface4-generator-'));
-    const previousCwd = process.cwd();
+    const appDataPath = mkdtempSync(path.join(os.tmpdir(), 'surface4-appdata-'));
 
     try {
-      process.chdir(workspace);
+      electronState.appDataPath = appDataPath;
+      writeWorkspaceState(appDataPath, workspace);
 
       const normalizedSpecPath = path.join(workspace, '.cse-buddy', 'surface1', 'payments', 'normalized', 'openapi.yaml');
       const flowPath = path.join(workspace, '.cse-buddy', 'surface2', 'payments', 'flow.yaml');
@@ -131,7 +156,8 @@ describe('Surface 4 generator', () => {
       expect(loadedState.generatedSpecPath).toContain('/.cse-buddy/surface4/payments/generated/api/openapi.yaml');
       expect(loadedState.generatedFlowPath).toContain('/.cse-buddy/surface4/payments/generated/.cse-buddy/flows/payments/flow.yaml');
     } finally {
-      process.chdir(previousCwd);
+      electronState.appDataPath = '';
+      rmSync(appDataPath, { recursive: true, force: true });
       rmSync(workspace, { recursive: true, force: true });
     }
   });

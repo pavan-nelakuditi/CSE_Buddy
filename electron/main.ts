@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 
 import { app, BrowserWindow } from 'electron';
 
+import { registerWorkspaceIpc } from './ipc/workspace.js';
 import { registerSurface1Ipc } from './ipc/surface1.js';
 import { registerSurface2Ipc } from './ipc/surface2.js';
 import { registerSurface3Ipc } from './ipc/surface3.js';
@@ -12,21 +13,22 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 function createWindow(): BrowserWindow {
+  const appRoot = path.resolve(__dirname, '..', '..');
   const win = new BrowserWindow({
     width: 1440,
     height: 980,
     minWidth: 1100,
     minHeight: 800,
-        show: false,
-        backgroundColor: '#f5f0e8',
-        webPreferences: {
-      preload: path.resolve(process.cwd(), 'electron', 'preload.cjs'),
-          contextIsolation: true,
-          nodeIntegration: false
-        }
-    });
+    show: false,
+    backgroundColor: '#f5f0e8',
+    webPreferences: {
+      preload: path.resolve(appRoot, 'electron', 'preload.cjs'),
+      contextIsolation: true,
+      nodeIntegration: false
+    }
+  });
 
-  const rendererPath = path.resolve(process.cwd(), 'dist-renderer', 'index.html');
+  const rendererPath = path.resolve(appRoot, 'dist-renderer', 'index.html');
   win.once('ready-to-show', () => {
     win.show();
     win.focus();
@@ -37,6 +39,7 @@ function createWindow(): BrowserWindow {
 }
 
 app.whenReady().then(() => {
+  registerWorkspaceIpc();
   registerSurface1Ipc();
   registerSurface2Ipc();
   registerSurface3Ipc();

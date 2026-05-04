@@ -12,6 +12,7 @@ import type {
   ServiceCatalogEntry,
   SpecContext
 } from './shared/surface1.js';
+import type { WorkspaceState } from './shared/workspace.js';
 
 type AwsMode = 'single' | 'bulk';
 type SourceMode = 'upload' | 'aws';
@@ -85,6 +86,12 @@ function renderSpecSummary(specContext: SpecContext): ReactElement {
       </div>
     </div>
   );
+}
+
+function getWorkspaceName(workspacePath: string): string {
+  const trimmedPath = workspacePath.replace(/[\\/]+$/, '');
+  const segments = trimmedPath.split(/[/\\]/);
+  return segments[segments.length - 1] || workspacePath;
 }
 
 function matchesFilter(entry: ServiceCatalogEntry, filter: CatalogFilter): boolean {
@@ -173,6 +180,9 @@ function getProgressSteps(
 }
 
 export default function App(): ReactElement {
+  const [workspaceState, setWorkspaceState] = useState<WorkspaceState | null>(null);
+  const [workspaceLoading, setWorkspaceLoading] = useState<string>('Loading workspace...');
+  const [workspaceError, setWorkspaceError] = useState<string>('');
   const [currentSurface, setCurrentSurface] = useState<SurfaceId>('surface1');
   const [sourceMode, setSourceMode] = useState<SourceMode>('upload');
   const [awsMode, setAwsMode] = useState<AwsMode>('single');
@@ -193,8 +203,48 @@ export default function App(): ReactElement {
   const [message, setMessage] = useState<string>('');
   const [error, setError] = useState<string>('');
   const [loading, setLoading] = useState<string>('');
+  const activeWorkspacePath = workspaceState?.currentWorkspacePath;
+
+  function resetWorkspaceSession(): void {
+    setCurrentSurface('surface1');
+    setSelectedUploadPath('');
+    setSingleResult(null);
+    setBulkCatalog(null);
+    setSelectedCatalogSpec(null);
+    setCatalogFilter('all');
+    setConnectionSummary('');
+    setApis([]);
+    setSelectedApiId('');
+    setSelectedGatewayType('REST');
+    setStages([]);
+    setSelectedStage('');
+    setMessage('');
+    setError('');
+    setLoading('');
+  }
 
   useEffect(() => {
+    if (!window.workspace) {
+      setWorkspaceError('Workspace bridge is unavailable. Restart the app after rebuilding Electron.');
+      setWorkspaceLoading('');
+      return;
+    }
+    void (async () => {
+      try {
+        setWorkspaceState(await window.workspace.getWorkspaceState());
+      } catch (err) {
+        setWorkspaceError(formatError(err));
+      } finally {
+        setWorkspaceLoading('');
+      }
+    })();
+  }, []);
+
+  useEffect(() => {
+    if (!activeWorkspacePath) {
+      setProfiles([]);
+      return;
+    }
     if (!window.surface1) {
       setError('Surface 1 bridge is unavailable. Restart the app after rebuilding Electron.');
       return;
@@ -206,7 +256,7 @@ export default function App(): ReactElement {
         setError(formatError(err));
       }
     })();
-  }, []);
+  }, [activeWorkspacePath]);
 
   const selectedApi = useMemo(
     () => apis.find((api) => api.id === selectedApiId),
@@ -223,6 +273,11 @@ export default function App(): ReactElement {
   const profileValue = selectedProfile || undefined;
 
   useEffect(() => {
+    if (!activeWorkspacePath) {
+      setCurrentSurface('surface1');
+      return;
+    }
+
     if (!activeSpecContext) {
       setCurrentSurface('surface1');
       return;
@@ -230,6 +285,87 @@ export default function App(): ReactElement {
 
     setCurrentSurface((current) => (current === 'surface1' ? 'surface2' : current));
   }, [activeSpecContext]);
+
+  async function handleChooseWorkspace(): Promise<void> {
+    setWorkspaceLoading('Opening workspace...');
+    setWorkspaceError('');
+
+    try {
+      const result = await window.workspace.chooseWorkspace();
+      setWorkspaceState(result.state);
+      if (result.workspacePath) {
+        resetWorkspaceSession();
+        setMessage(`Workspace ready: ${getWorkspaceName(result.workspacePath)}.`);
+      }
+    } catch (err) {
+      setWorkspaceError(formatError(err));
+    } finally {
+      setWorkspaceLoading('');
+    }
+  }
+
+  async function handleCreateWorkspace(): Promise<void> {
+    setWorkspaceLoading('Creating workspace...');
+    setWorkspaceError('');
+
+    try {
+      const result = await window.workspace.createWorkspace();
+      setWorkspaceState(result.state);
+      if (result.workspacePath) {
+        resetWorkspaceSession();
+        setMessage(`Workspace ready: ${getWorkspaceName(result.workspacePath)}.`);
+      }
+    } catch (err) {
+      setWorkspaceError(formatError(err));
+    } finally {
+      setWorkspaceLoading('');
+    }
+  }
+
+  async function handleOpenRecentWorkspace(workspacePath: string): Promise<void> {
+    setWorkspaceLoading('Opening workspace...');
+    setWorkspaceError('');
+
+    try {
+      const nextState = await window.workspace.openWorkspace(workspacePath);
+      setWorkspaceState(nextState);
+      resetWorkspaceSession();
+      setMessage(`Workspace ready: ${getWorkspaceName(workspacePath)}.`);
+    } catch (err) {
+      setWorkspaceError(formatError(err));
+    } finally {
+      setWorkspaceLoading('');
+    }
+  }
+
+  async function handleClearWorkspace(): Promise<void> {
+    setWorkspaceLoading('Closing workspace...');
+    setWorkspaceError('');
+
+    try {
+      const nextState = await window.workspace.clearWorkspace();
+      setWorkspaceState(nextState);
+      resetWorkspaceSession();
+      setProfiles([]);
+    } catch (err) {
+      setWorkspaceError(formatError(err));
+    } finally {
+      setWorkspaceLoading('');
+    }
+  }
+
+  async function handleOpenWorkspaceFolder(): Promise<void> {
+    if (!activeWorkspacePath) {
+      return;
+    }
+
+    try {
+      setWorkspaceError('');
+      await window.workspace.openPath(activeWorkspacePath);
+    } catch (err) {
+      setWorkspaceError(formatError(err));
+    }
+  }
 
   async function handlePickUpload(): Promise<void> {
     setError('');
@@ -386,6 +522,71 @@ export default function App(): ReactElement {
     } finally {
       setLoading('');
     }
+  }
+
+  if (workspaceLoading && !workspaceState && !workspaceError) {
+    return (
+      <div className="workspace-launch-shell">
+        <section className="workspace-launch-card">
+          <p className="eyebrow">CSE Buddy</p>
+          <h1>Preparing your workspace</h1>
+          <p>{workspaceLoading}</p>
+        </section>
+      </div>
+    );
+  }
+
+  if (!activeWorkspacePath) {
+    return (
+      <div className="workspace-launch-shell">
+        <section className="workspace-launch-card">
+          <p className="eyebrow">CSE Buddy</p>
+          <h1>Choose a workspace</h1>
+          <p>
+            CSE Buddy keeps each service import, smoke flow, onboarding config, and generated Git bundle inside the
+            workspace you choose here.
+          </p>
+
+          <div className="launch-actions">
+            <button type="button" className="primary" onClick={handleChooseWorkspace}>
+              Open workspace
+            </button>
+            <button type="button" onClick={handleCreateWorkspace}>
+              Create workspace
+            </button>
+          </div>
+
+          {workspaceLoading ? <p className="status-line">{workspaceLoading}</p> : null}
+          {workspaceError ? <p className="status-line error">{workspaceError}</p> : null}
+
+          <div className="workspace-recent-list">
+            <div className="panel-header">
+              <div>
+                <h2>Recent workspaces</h2>
+                <p>Pick up where you left off.</p>
+              </div>
+            </div>
+            {workspaceState?.recentWorkspaces.length ? (
+              <div className="workspace-recent-stack">
+                {workspaceState.recentWorkspaces.map((workspacePath) => (
+                  <button
+                    key={workspacePath}
+                    type="button"
+                    className="workspace-recent-item"
+                    onClick={() => handleOpenRecentWorkspace(workspacePath)}
+                  >
+                    <strong>{getWorkspaceName(workspacePath)}</strong>
+                    <span>{workspacePath}</span>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <p className="muted">No workspaces yet. Open a project folder or create a fresh one to begin.</p>
+            )}
+          </div>
+        </section>
+      </div>
+    );
   }
 
   return (
@@ -614,6 +815,28 @@ export default function App(): ReactElement {
       </aside>
 
       <main className="workspace">
+        <section className="workspace-banner">
+          <div>
+            <p className="eyebrow">Workspace</p>
+            <h2>{getWorkspaceName(activeWorkspacePath)}</h2>
+            <p>{activeWorkspacePath}</p>
+          </div>
+          <div className="inline-actions">
+            <button type="button" onClick={() => void handleOpenWorkspaceFolder()}>
+              Open workspace folder
+            </button>
+            <button type="button" onClick={handleChooseWorkspace}>
+              Open another workspace
+            </button>
+            <button type="button" onClick={handleCreateWorkspace}>
+              Create workspace
+            </button>
+            <button type="button" onClick={handleClearWorkspace}>
+              Close workspace
+            </button>
+          </div>
+        </section>
+
         <section className="progress-strip">
           {progressSteps.map((step, index) => (
             <button

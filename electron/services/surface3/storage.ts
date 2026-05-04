@@ -8,18 +8,19 @@ import type {
   Surface3LoadStateResult,
   Surface3PersistenceResult
 } from '../../../src/shared/surface3.js';
+import { getRequiredWorkspaceRoot } from '../workspace/state.js';
 import { writeJson } from '../surface1/paths.js';
 
-function getSurface3Root(): string {
-  return path.resolve(process.cwd(), '.cse-buddy', 'surface3');
+async function getSurface3Root(): Promise<string> {
+  return path.resolve(await getRequiredWorkspaceRoot(), '.cse-buddy', 'surface3');
 }
 
-function getServiceSurface3Dir(serviceKey: string): string {
-  return path.join(getSurface3Root(), serviceKey);
+async function getServiceSurface3Dir(serviceKey: string): Promise<string> {
+  return path.join(await getSurface3Root(), serviceKey);
 }
 
-function getConfigPath(serviceKey: string): string {
-  return path.join(getServiceSurface3Dir(serviceKey), 'cicd-config.json');
+async function getConfigPath(serviceKey: string): Promise<string> {
+  return path.join(await getServiceSurface3Dir(serviceKey), 'cicd-config.json');
 }
 
 async function exists(filePath: string): Promise<boolean> {
@@ -32,7 +33,7 @@ async function exists(filePath: string): Promise<boolean> {
 }
 
 export async function loadSurface3State(input: LoadSurface3StateInput): Promise<Surface3LoadStateResult> {
-  const configPath = getConfigPath(input.serviceKey);
+  const configPath = await getConfigPath(input.serviceKey);
   const flowExists = await exists(input.flowPath);
 
   if (!(await exists(configPath))) {
@@ -48,7 +49,7 @@ export async function loadSurface3State(input: LoadSurface3StateInput): Promise<
 }
 
 export async function saveSurface3Config(input: SaveSurface3ConfigInput): Promise<Surface3PersistenceResult> {
-  const configPath = getConfigPath(input.config.serviceKey);
+  const configPath = await getConfigPath(input.config.serviceKey);
   await writeJson(configPath, input.config);
   return { configPath };
 }

@@ -1,5 +1,15 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
+const workspaceChannels = {
+  chooseWorkspace: 'workspace:choose',
+  createWorkspace: 'workspace:create',
+  openWorkspace: 'workspace:open',
+  getWorkspaceState: 'workspace:get-state',
+  clearWorkspace: 'workspace:clear',
+  openPath: 'workspace:open-path',
+  revealPath: 'workspace:reveal-path'
+};
+
 const surface1Channels = {
   pickOpenApiFile: 'surface1:pick-openapi-file',
   importUploadedSpec: 'surface1:import-uploaded-spec',
@@ -24,8 +34,34 @@ const surface3Channels = {
 
 const surface4Channels = {
   loadState: 'surface4:load-state',
-  generateArtifacts: 'surface4:generate-artifacts'
+  generateArtifacts: 'surface4:generate-artifacts',
+  revealBundle: 'surface4:reveal-bundle',
+  openReadme: 'surface4:open-readme'
 };
+
+function requireTargetPath(targetPath, actionLabel) {
+  if (typeof targetPath !== 'string' || targetPath.length === 0) {
+    throw new Error(`${actionLabel} path is unavailable.`);
+  }
+  return targetPath;
+}
+
+function normalizeServiceKey(serviceKey, actionLabel) {
+  if (typeof serviceKey !== 'string' || serviceKey.length === 0) {
+    throw new Error(`${actionLabel} service key is unavailable.`);
+  }
+  return serviceKey;
+}
+
+contextBridge.exposeInMainWorld('workspace', {
+  chooseWorkspace: () => ipcRenderer.invoke(workspaceChannels.chooseWorkspace),
+  createWorkspace: () => ipcRenderer.invoke(workspaceChannels.createWorkspace),
+  openWorkspace: (workspacePath) => ipcRenderer.invoke(workspaceChannels.openWorkspace, workspacePath),
+  getWorkspaceState: () => ipcRenderer.invoke(workspaceChannels.getWorkspaceState),
+  clearWorkspace: () => ipcRenderer.invoke(workspaceChannels.clearWorkspace),
+  openPath: (targetPath) => ipcRenderer.invoke(workspaceChannels.openPath, requireTargetPath(targetPath, 'Open')),
+  revealPath: (targetPath) => ipcRenderer.invoke(workspaceChannels.revealPath, requireTargetPath(targetPath, 'Reveal'))
+});
 
 contextBridge.exposeInMainWorld('surface1', {
   pickOpenApiFile: () => ipcRenderer.invoke(surface1Channels.pickOpenApiFile),
@@ -52,5 +88,7 @@ contextBridge.exposeInMainWorld('surface3', {
 
 contextBridge.exposeInMainWorld('surface4', {
   loadState: (input) => ipcRenderer.invoke(surface4Channels.loadState, input),
-  generateArtifacts: (input) => ipcRenderer.invoke(surface4Channels.generateArtifacts, input)
+  generateArtifacts: (input) => ipcRenderer.invoke(surface4Channels.generateArtifacts, input),
+  revealBundle: (serviceKey) => ipcRenderer.invoke(surface4Channels.revealBundle, normalizeServiceKey(serviceKey, 'Reveal bundle')),
+  openReadme: (serviceKey) => ipcRenderer.invoke(surface4Channels.openReadme, normalizeServiceKey(serviceKey, 'Open README'))
 });

@@ -11,6 +11,21 @@ It walks a user through four surfaces:
 
 The app is designed for teams that may already have strong specs, as well as teams starting from weaker gateway-derived definitions and moving toward a more spec-first workflow.
 
+## Workspace-First Model
+
+CSE Buddy now opens around a user-selected workspace folder.
+
+- app-level state lives in the OS app data directory
+  - current workspace
+  - recent workspaces
+- service artifacts live inside the selected workspace
+  - `.cse-buddy/surface1/...`
+  - `.cse-buddy/surface2/...`
+  - `.cse-buddy/surface3/...`
+  - `.cse-buddy/surface4/...`
+
+On first launch, choose or create a workspace. On later launches, CSE Buddy will reopen the last valid workspace automatically.
+
 ## What The App Produces
 
 For each service, CSE Buddy can generate:
@@ -25,7 +40,7 @@ For each service, CSE Buddy can generate:
   - staged spec and flow files
   - a generated README for first-time setup
 
-All generated service artifacts are stored under `.cse-buddy/`.
+All generated service artifacts are stored under the selected workspace’s `.cse-buddy/` directory.
 
 ## Tech Stack
 
@@ -63,6 +78,14 @@ Build and launch the app:
 npm start
 ```
 
+When the app opens:
+
+1. choose or create a workspace
+2. import one service spec in Surface 1
+3. export `flow.yaml` in Surface 2
+4. save onboarding config in Surface 3
+5. generate the staged Git bundle in Surface 4
+
 ## Development Commands
 
 Build everything:
@@ -93,6 +116,18 @@ Watch Electron TypeScript output:
 
 ```bash
 npm run dev:electron
+```
+
+Create a local packaged macOS app directory for validation:
+
+```bash
+npm run dist:dir
+```
+
+Create internal pilot macOS artifacts:
+
+```bash
+npm run dist:mac
 ```
 
 ## Product Flow
@@ -149,13 +184,28 @@ CSE_Buddy/
 
 ## Local Generated Artifacts
 
-The app writes local service data under:
+The app writes local service data under the selected workspace:
 
 ```text
 .cse-buddy/
 ```
 
 That includes imported specs, exported flows, saved onboarding config, and staged Surface 4 bundles. These are local working artifacts and should not be committed by default.
+
+## Distribution
+
+Current packaging target:
+
+- macOS first
+- internal pilot distribution
+- `electron-builder` generated `.dmg` and `.zip`
+
+What is intentionally out of scope for this pass:
+
+- code signing
+- notarization
+- auto-update
+- Windows and Linux installers
 
 ## Current Scope
 
@@ -165,6 +215,48 @@ Current implementation focus:
 - one smoke flow per service
 - GitHub Actions as the CI/CD target
 - staged bundle generation, not direct repo publishing
+
+## Internal Distribution Flow
+
+For an internal pilot build:
+
+1. install dependencies with `npm install`
+2. run `npm run dist:mac`
+3. open the generated app
+4. choose a workspace on first launch
+5. keep generated specs, flows, config, and staged bundles inside that workspace
+
+## Pilot Test Checklist
+
+For a realistic packaged-app test:
+
+1. launch the app from `dist-packages/`
+2. choose a fresh workspace folder
+3. import one service in Surface 1
+4. export `flow.yaml` in Surface 2
+5. save the onboarding config in Surface 3
+6. generate the Git bundle in Surface 4
+7. use the app actions to:
+   - open the active workspace folder
+   - reveal the generated bundle
+   - open the generated `README.md`
+8. confirm all generated artifacts live under that workspace’s `.cse-buddy/` directory
+
+The generated Surface 4 README is the handoff artifact for first-time users. It should be the first file reviewed after bundle generation.
+
+## App State vs Workspace State
+
+App-level settings:
+
+- recent workspaces
+- last-opened workspace
+
+Workspace-level data:
+
+- imported and normalized specs
+- exported `flow.yaml`
+- saved `cicd-config.json`
+- staged Surface 4 Git bundle
 
 ## Before Pushing To GitHub
 
@@ -197,4 +289,3 @@ If Surface 3 or Surface 4 appears blocked:
 
 - Surface 2 must export a real `flow.yaml`
 - Surface 3 must save `cicd-config.json`
-
