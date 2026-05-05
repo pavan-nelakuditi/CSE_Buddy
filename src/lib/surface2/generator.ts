@@ -35,7 +35,8 @@ type DependencyEdge = {
 const EXCLUDED_KEYWORDS = ['admin', 'health', 'internal', 'toggle', 'reset', 'ops'];
 const EXCLUDED_METHODS = ['HEAD', 'OPTIONS', 'TRACE', 'DELETE'];
 const START_PREFIXES = ['create', 'start', 'submit', 'authorize', 'initiate'];
-const JOURNEY_STEP_LIMIT = 5;
+const LARGE_SERVICE_STEP_LIMIT = 5;
+const SMALL_SERVICE_OPERATION_LIMIT = 8;
 const MIN_EDGE_SCORE = 80;
 const CLOSE_MATCH_DELTA = 12;
 const LOW_VALUE_FIELD_TOKENS = new Set(['api', 'service', 'by', 'id', 'the', 'a', 'an', 'request', 'response']);
@@ -268,6 +269,7 @@ function buildDependencyEdges(operations: SpecOperation[]): DependencyEdge[] {
 
 function collectJourneyOperations(specContext: SpecContext): SpecOperation[] {
   const candidates = specContext.operations.filter((operation) => !isExcludedOperation(operation));
+  const journeyStepLimit = candidates.length <= SMALL_SERVICE_OPERATION_LIMIT ? candidates.length : LARGE_SERVICE_STEP_LIMIT;
   const operationById = new Map(candidates.map((operation) => [operation.operationId, operation]));
   const edges = buildDependencyEdges(candidates);
   const start = [...candidates].sort((left, right) => scoreStartOperation(right, edges) - scoreStartOperation(left, edges))[0];
@@ -278,7 +280,7 @@ function collectJourneyOperations(specContext: SpecContext): SpecOperation[] {
   const chosen: SpecOperation[] = [start];
   const chosenIds = new Set([start.operationId]);
 
-  while (chosen.length < JOURNEY_STEP_LIMIT) {
+  while (chosen.length < journeyStepLimit) {
     const nextEdge = edges
       .filter((edge) => chosenIds.has(edge.sourceOperationId) && !chosenIds.has(edge.targetOperationId))
       .filter((edge) => edge.score >= MIN_EDGE_SCORE)

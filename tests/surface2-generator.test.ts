@@ -195,6 +195,72 @@ const BUSINESS_KEY_CONTEXT: SpecContext = {
   ]
 };
 
+function makeChainedContext(operationCount: number): SpecContext {
+  return {
+    serviceKey: 'workflow',
+    source: 'upload',
+    acquisition: {
+      sourceLabel: 'Uploaded OpenAPI file',
+      importedAt: '2026-04-27T12:00:00.000Z'
+    },
+    document: {
+      name: 'Workflow API',
+      version: '1.0.0',
+      format: 'openapi_3',
+      originalPath: '/tmp/openapi.yaml',
+      normalizedPath: '/tmp/openapi.yaml'
+    },
+    validation: {
+      valid: true,
+      errors: [],
+      warnings: []
+    },
+    summary: {
+      endpointCount: operationCount,
+      pathCount: operationCount,
+      operationCount,
+      tags: ['workflow'],
+      servers: ['https://api.example.com'],
+      securitySchemes: [],
+      excludedOperationCount: 0,
+      syntheticOperationCount: 0
+    },
+    operations: Array.from({ length: operationCount }, (_, index) => {
+      const tokenNumber = index + 1;
+      return {
+        operationId: index === 0 ? 'createWorkflow' : `advanceWorkflowStep${index + 1}`,
+        method: index === 0 ? 'POST' : 'PATCH',
+        path: index === 0 ? '/workflows' : `/workflows/{step${tokenNumber}Token}/step-${index + 1}`,
+        tags: ['workflow'],
+        summary: index === 0 ? 'Create workflow' : `Advance workflow step ${index + 1}`,
+        fields:
+          index === 0
+            ? []
+            : [
+                {
+                  key: `step${tokenNumber}Token`,
+                  label: `step${tokenNumber}Token`,
+                  location: 'path',
+                  required: true,
+                  type: 'string'
+                }
+              ],
+        responseFields:
+          index === operationCount - 1
+            ? []
+            : [
+                {
+                  key: `step${tokenNumber + 1}Token`,
+                  label: `step${tokenNumber + 1}Token`,
+                  jsonPath: `$.step${tokenNumber + 1}Token`,
+                  type: 'string'
+                }
+              ]
+      };
+    })
+  };
+}
+
 describe('Surface 2 generator', () => {
   it('builds one happy-path smoke flow with supporting reads and bindings', () => {
     const result = generateDraftFlow(SPEC_CONTEXT);
@@ -295,5 +361,19 @@ describe('Surface 2 generator', () => {
         })
       ])
     );
+  });
+
+  it('includes all connected operations for small services', () => {
+    const result = generateDraftFlow(makeChainedContext(6));
+
+    expect(result.pendingAmbiguity).toBeUndefined();
+    expect(result.flow?.steps).toHaveLength(6);
+  });
+
+  it('keeps large services capped for reviewability', () => {
+    const result = generateDraftFlow(makeChainedContext(9));
+
+    expect(result.pendingAmbiguity).toBeUndefined();
+    expect(result.flow?.steps).toHaveLength(5);
   });
 });
