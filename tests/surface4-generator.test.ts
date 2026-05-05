@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
@@ -169,6 +169,78 @@ describe('Surface 4 generator', () => {
         'Postman PR Validation'
       );
       expect(readFileSync(path.join(exportTarget, 'POSTMAN_ONBOARDING.md'), 'utf8')).toContain('How To Use These Artifacts');
+    } finally {
+      electronState.appDataPath = '';
+      rmSync(appDataPath, { recursive: true, force: true });
+      rmSync(workspace, { recursive: true, force: true });
+    }
+  });
+
+  it('upgrades legacy generated README bundles to the Postman onboarding guide', async () => {
+    const workspace = mkdtempSync(path.join(os.tmpdir(), 'surface4-legacy-guide-'));
+    const appDataPath = mkdtempSync(path.join(os.tmpdir(), 'surface4-appdata-'));
+
+    try {
+      electronState.appDataPath = appDataPath;
+      writeWorkspaceState(appDataPath, workspace);
+
+      const serviceKey = 'payments';
+      const flowPath = path.join(workspace, '.cse-buddy', 'surface2', serviceKey, 'flow.yaml');
+      const configPath = path.join(workspace, '.cse-buddy', 'surface3', serviceKey, 'cicd-config.json');
+      const surface4Dir = path.join(workspace, '.cse-buddy', 'surface4', serviceKey);
+      const generatedRoot = path.join(surface4Dir, 'generated');
+      const legacyReadmePath = path.join(generatedRoot, 'README.md');
+      const summaryPath = path.join(surface4Dir, 'generation-summary.json');
+
+      mkdirSync(path.dirname(flowPath), { recursive: true });
+      mkdirSync(path.dirname(configPath), { recursive: true });
+      mkdirSync(generatedRoot, { recursive: true });
+
+      writeFileSync(flowPath, 'flows: []\n', 'utf8');
+      writeFileSync(legacyReadmePath, '# Legacy onboarding guide\n\nPOSTMAN_API_KEY\n', 'utf8');
+      writeJson(configPath, {
+        serviceKey,
+        ciProvider: 'github',
+        sourceSpecPath: '/tmp/openapi.yaml',
+        flowPath,
+        prStrategy: {
+          runSpecLint: true,
+          runGovernanceChecks: true,
+          blockOnFailure: true
+        },
+        mergeStrategy: {
+          targetBranch: 'main',
+          trigger: 'merge_to_main',
+          runFullOnboarding: true
+        },
+        environments: [],
+        onboardingActionInputs: {
+          environmentsJson: [],
+          envRuntimeUrlsJson: {}
+        }
+      });
+      writeJson(summaryPath, {
+        serviceKey,
+        generatedAt: '2026-05-05T00:00:00.000Z',
+        files: [legacyReadmePath],
+        workflowPaths: [],
+        setupDocPath: legacyReadmePath,
+        generatedRoot,
+        generatedSpecPath: path.join(generatedRoot, 'api', 'openapi.yaml'),
+        generatedFlowPath: path.join(generatedRoot, '.cse-buddy', 'flows', serviceKey, 'flow.yaml')
+      });
+
+      const loadedState = await loadSurface4State({ serviceKey, flowPath });
+      const guidePath = path.join(generatedRoot, 'POSTMAN_ONBOARDING.md');
+
+      expect(existsSync(guidePath)).toBe(true);
+      expect(loadedState.summary?.setupDocPath).toBe(guidePath);
+      expect(loadedState.summary?.files).toContain(guidePath);
+
+      const exportTarget = path.join(workspace, 'target-repo');
+      await exportSurface4Bundle(serviceKey, exportTarget);
+
+      expect(readFileSync(path.join(exportTarget, 'POSTMAN_ONBOARDING.md'), 'utf8')).toContain('POSTMAN_API_KEY');
     } finally {
       electronState.appDataPath = '';
       rmSync(appDataPath, { recursive: true, force: true });

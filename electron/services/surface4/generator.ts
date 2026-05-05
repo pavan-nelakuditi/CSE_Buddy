@@ -100,6 +100,30 @@ async function copyGeneratedBundle(generatedRoot: string, targetDirectory: strin
   return copiedFiles;
 }
 
+async function ensureGeneratedSetupDoc(generatedRoot: string): Promise<string> {
+  const setupDocPath = path.join(generatedRoot, getGeneratedSetupDocRelativePath());
+  if (await exists(setupDocPath)) {
+    return setupDocPath;
+  }
+
+  const legacyReadmePath = path.join(generatedRoot, 'README.md');
+  if (await exists(legacyReadmePath)) {
+    await copyFile(legacyReadmePath, setupDocPath);
+  }
+
+  return setupDocPath;
+}
+
+function normalizeSummarySetupDoc(summary: Surface4GenerationSummary, setupDocPath: string): Surface4GenerationSummary {
+  const legacyReadmePath = path.join(summary.generatedRoot, 'README.md');
+  const files = summary.files.map((filePath) => (filePath === legacyReadmePath || filePath === summary.setupDocPath ? setupDocPath : filePath));
+  return {
+    ...summary,
+    files: files.includes(setupDocPath) ? files : [...files, setupDocPath],
+    setupDocPath
+  };
+}
+
 function withResolvedFlowPath(config: CICDConfig, flowPath: string): CICDConfig {
   if (config.flowPath === flowPath) {
     return config;
@@ -117,6 +141,7 @@ export async function loadSurface4State(input: LoadSurface4StateInput): Promise<
   const generatedRoot = await getGeneratedRoot(input.serviceKey);
   const generatedSpecPath = path.join(generatedRoot, getGeneratedSpecRelativePath());
   const generatedFlowPath = path.join(generatedRoot, getGeneratedFlowRelativePath(input.serviceKey));
+  const setupDocPath = await ensureGeneratedSetupDoc(generatedRoot);
   const expectedFiles = [
     path.join(generatedRoot, getGeneratedSpecRelativePath()),
     path.join(generatedRoot, getGeneratedFlowRelativePath(input.serviceKey)),
@@ -138,7 +163,12 @@ export async function loadSurface4State(input: LoadSurface4StateInput): Promise<
           configPath
         }
       : {}),
-    ...(summaryExists ? { summary: await readJsonFile<Surface4GenerationSummary>(summaryPath), summaryPath } : {}),
+    ...(summaryExists
+      ? {
+          summary: normalizeSummarySetupDoc(await readJsonFile<Surface4GenerationSummary>(summaryPath), setupDocPath),
+          summaryPath
+        }
+      : {}),
     generatedRoot,
     generatedSpecPath,
     generatedFlowPath,
@@ -220,7 +250,7 @@ export async function getSurface4BundlePaths(serviceKey: string): Promise<{
   const generatedRoot = await getGeneratedRoot(serviceKey);
   return {
     generatedRoot,
-    setupDocPath: path.join(generatedRoot, getGeneratedSetupDocRelativePath())
+    setupDocPath: await ensureGeneratedSetupDoc(generatedRoot)
   };
 }
 
