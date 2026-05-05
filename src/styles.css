@@ -642,6 +642,11 @@ code {
   text-align: left;
 }
 
+.ambiguity-choice-list .ambiguity-example-choice {
+  border-color: rgba(255, 108, 55, 0.32);
+  background: rgba(255, 108, 55, 0.1);
+}
+
 .surface2-grid {
   display: grid;
   grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.1fr) minmax(0, 1fr);

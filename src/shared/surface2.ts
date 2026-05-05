@@ -45,13 +45,14 @@ export type FlowDefinition = {
 };
 
 export type AmbiguityChoice = {
+  source?: 'prior_output' | 'example';
   label: string;
   reason: string;
-  sourceOperationId: string;
-  sourceFieldJsonPath: string;
+  sourceOperationId?: string;
+  sourceFieldJsonPath?: string;
   targetOperationId: string;
   targetFieldKey: string;
-  variableName: string;
+  variableName?: string;
 };
 
 export type AmbiguityPrompt = {

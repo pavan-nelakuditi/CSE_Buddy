@@ -343,6 +343,7 @@ function buildAmbiguityPrompt(targetOperation: SpecOperation, fieldKey: string, 
     id: `${targetOperation.operationId}:${fieldKey}`,
     question: `Which prior output should supply "${fieldKey}" for ${targetOperation.operationId}?`,
     choices: candidates.slice(0, 4).map((candidate) => ({
+      source: 'prior_output',
       label: `${candidate.operationId} -> ${candidate.responseField.label}`,
       reason: candidate.message,
       sourceOperationId: candidate.operationId,
@@ -351,6 +352,16 @@ function buildAmbiguityPrompt(targetOperation: SpecOperation, fieldKey: string, 
       targetFieldKey: fieldKey,
       variableName: candidate.variableName
     }))
+  };
+}
+
+function createFallbackReason(operation: SpecOperation, field: OperationField): FlowDetectionReason {
+  return {
+    type: 'fallback_example',
+    confidence: field.example ? 'medium' : 'low',
+    message: field.example
+      ? `${operation.operationId}.${field.key} uses the example value from the OpenAPI schema.`
+      : `${operation.operationId}.${field.key} has no detected prior output, so Surface 2 will rely on an editable example value.`
   };
 }
 
@@ -381,6 +392,15 @@ function buildBindingsForOperation(
     }
 
     const override = overrides[overrideKey];
+    if (override?.source === 'example') {
+      bindings.push({
+        fieldKey: field.key,
+        source: 'example',
+        detectionReason: createFallbackReason(operation, field)
+      });
+      continue;
+    }
+
     const chosenCandidate = override
       ? candidates.find(
           (candidate) =>
@@ -405,17 +425,10 @@ function buildBindingsForOperation(
       continue;
     }
 
-    const fallbackReason: FlowDetectionReason = {
-      type: 'fallback_example',
-      confidence: field.example ? 'medium' : 'low',
-      message: field.example
-        ? `${operation.operationId}.${field.key} uses the example value from the OpenAPI schema.`
-        : `${operation.operationId}.${field.key} has no detected prior output, so Surface 2 will rely on an editable example value.`
-    };
     bindings.push({
       fieldKey: field.key,
       source: 'example',
-      detectionReason: fallbackReason
+      detectionReason: createFallbackReason(operation, field)
     });
   }
 

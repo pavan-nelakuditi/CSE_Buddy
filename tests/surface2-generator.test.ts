@@ -257,4 +257,43 @@ describe('Surface 2 generator', () => {
     );
     expect(readStep?.bindings[0]?.detectionReason?.message).toContain('invoiceNumber');
   });
+
+  it('allows ambiguous bindings to fall back to an editable example', () => {
+    const ambiguousContext = JSON.parse(JSON.stringify(SPEC_CONTEXT)) as SpecContext;
+    ambiguousContext.operations[0]?.responseFields.push({
+      key: 'alternatePaymentId',
+      label: 'paymentId',
+      jsonPath: '$.alternate.paymentId',
+      type: 'string'
+    });
+
+    const unresolved = generateDraftFlow(ambiguousContext);
+    expect(unresolved.pendingAmbiguity?.question).toContain('paymentId');
+
+    const target = unresolved.pendingAmbiguity?.choices[0];
+    if (!target) {
+      throw new Error('Expected an ambiguity target.');
+    }
+
+    const resolved = generateDraftFlow(ambiguousContext, {
+      [`${target.targetOperationId}:${target.targetFieldKey}`]: {
+        source: 'example',
+        label: 'Use example',
+        reason: 'Keep this field editable.',
+        targetOperationId: target.targetOperationId,
+        targetFieldKey: target.targetFieldKey
+      }
+    });
+
+    expect(resolved.pendingAmbiguity).toBeUndefined();
+    const readStep = resolved.flow?.steps.find((step) => step.operationId === 'getPaymentById');
+    expect(readStep?.bindings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          fieldKey: 'paymentId',
+          source: 'example'
+        })
+      ])
+    );
+  });
 });

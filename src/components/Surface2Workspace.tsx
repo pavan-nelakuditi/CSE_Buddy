@@ -103,6 +103,20 @@ export function Surface2Workspace({ specContext, onExportSuccess }: Props): Reac
     applyGeneratedResult(nextOverrides);
   }
 
+  function handleAmbiguityUseExample(): void {
+    const target = pendingPrompt?.choices[0];
+    if (!target) {
+      return;
+    }
+    handleAmbiguityChoice({
+      source: 'example',
+      label: 'Use example',
+      reason: `Use the OpenAPI example or an editable placeholder for ${target.targetOperationId}.${target.targetFieldKey}.`,
+      targetOperationId: target.targetOperationId,
+      targetFieldKey: target.targetFieldKey
+    });
+  }
+
   function getFieldBadgeLabel(source: BindingSource): string {
     if (source === 'prior_output') {
       return 'prior output';
@@ -363,6 +377,10 @@ export function Surface2Workspace({ specContext, onExportSuccess }: Props): Reac
           <h3>Ambiguity to resolve</h3>
           <p>{pendingPrompt.question}</p>
           <div className="ambiguity-choice-list">
+            <button type="button" className="ambiguity-example-choice" onClick={handleAmbiguityUseExample}>
+              <strong>Use example instead</strong>
+              <span>Skip prior-output binding for this field and keep it editable in the inspector.</span>
+            </button>
             {pendingPrompt.choices.map((choice) => (
               <button key={`${choice.sourceOperationId}-${choice.sourceFieldJsonPath}`} type="button" onClick={() => handleAmbiguityChoice(choice)}>
                 <strong>{choice.label}</strong>
