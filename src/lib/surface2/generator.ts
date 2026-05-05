@@ -1,5 +1,15 @@
-import type { SpecContext, SpecOperation, ResponseField } from '../../shared/surface1.js';
-import type { AmbiguityChoice, AmbiguityPrompt, BindingConfig, DraftResolution, ExtractionConfig, FlowDefinition, FlowStep } from '../../shared/surface2.js';
+import type { OperationField, ResponseField, SpecContext, SpecOperation } from '../../shared/surface1.js';
+import type {
+  AmbiguityChoice,
+  AmbiguityPrompt,
+  BindingConfig,
+  DraftResolution,
+  FlowDefinition,
+  FlowDetectionReason,
+  FlowStep
+} from '../../shared/surface2.js';
+
+type MatchConfidence = FlowDetectionReason['confidence'];
 
 type SourceCandidate = {
   stepId: string;
@@ -7,12 +17,28 @@ type SourceCandidate = {
   operationId: string;
   responseField: ResponseField;
   variableName: string;
+  score: number;
+  confidence: MatchConfidence;
+  message: string;
+};
+
+type DependencyEdge = {
+  sourceOperationId: string;
+  targetOperationId: string;
+  score: number;
+  confidence: MatchConfidence;
+  message: string;
+  targetFieldKey: string;
+  responseField: ResponseField;
 };
 
 const EXCLUDED_KEYWORDS = ['admin', 'health', 'internal', 'toggle', 'reset', 'ops'];
+const EXCLUDED_METHODS = ['HEAD', 'OPTIONS', 'TRACE', 'DELETE'];
 const START_PREFIXES = ['create', 'start', 'submit', 'authorize', 'initiate'];
-const SUPPORTING_READ_PREFIXES = ['get', 'fetch'];
 const JOURNEY_STEP_LIMIT = 5;
+const MIN_EDGE_SCORE = 80;
+const CLOSE_MATCH_DELTA = 12;
+const LOW_VALUE_FIELD_TOKENS = new Set(['api', 'service', 'by', 'id', 'the', 'a', 'an', 'request', 'response']);
 
 function createFlowId(): string {
   return typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
@@ -36,11 +62,19 @@ function normalizeToken(value: string): string {
   return value.replace(/([a-z0-9])([A-Z])/g, '$1-$2').replace(/[^a-z0-9]+/gi, '-').toLowerCase();
 }
 
+function compact(value: string): string {
+  return normalizeToken(value).replace(/-/g, '');
+}
+
 function tokenize(value: string): string[] {
   return normalizeToken(value)
     .split('-')
     .map((token) => token.trim())
-    .filter((token) => token.length > 1 && !['api', 'service', 'by', 'id'].includes(token));
+    .filter((token) => token.length > 1 && !LOW_VALUE_FIELD_TOKENS.has(token));
+}
+
+function lastSegment(value: string): string {
+  return value.split(/[.[\]]+/).filter(Boolean).slice(-1)[0] ?? value;
 }
 
 function getPrimaryResource(operation: SpecOperation): string {
@@ -50,6 +84,9 @@ function getPrimaryResource(operation: SpecOperation): string {
 }
 
 function isExcludedOperation(operation: SpecOperation): boolean {
+  if (EXCLUDED_METHODS.includes(operation.method.toUpperCase())) {
+    return true;
+  }
   const haystack = `${operation.operationId} ${operation.path} ${operation.tags.join(' ')} ${operation.summary}`.toLowerCase();
   return EXCLUDED_KEYWORDS.some((keyword) => haystack.includes(keyword));
 }
@@ -59,139 +96,236 @@ function isStartOperation(operation: SpecOperation): boolean {
   return START_PREFIXES.some((prefix) => lowered.startsWith(prefix)) || operation.method === 'POST';
 }
 
-function isSupportingRead(operation: SpecOperation): boolean {
-  const lowered = operation.operationId.toLowerCase();
-  return operation.method === 'GET' && SUPPORTING_READ_PREFIXES.some((prefix) => lowered.startsWith(prefix));
-}
-
 function isIdLike(value: string): boolean {
-  return /(id|uuid|token)$/i.test(value) || /\.id$/i.test(value) || /\$\.id$/i.test(value);
+  return /(id|uuid|token|number|key|code)$/i.test(value) || /\.id$/i.test(value) || /\$\.id$/i.test(value);
 }
 
 function createVariableName(operationId: string, field: ResponseField): string {
-  const suffix = field.label.split('.').slice(-1)[0] ?? 'value';
+  const suffix = lastSegment(field.label) || lastSegment(field.key) || 'value';
   return `${operationId}.${suffix}`;
 }
 
-function scoreStartOperation(operation: SpecOperation): number {
+function confidenceForScore(score: number): MatchConfidence {
+  if (score >= 95) return 'high';
+  if (score >= 55) return 'medium';
+  return 'low';
+}
+
+function scoreStartOperation(operation: SpecOperation, outgoingEdges: DependencyEdge[]): number {
   let score = 0;
   if (isExcludedOperation(operation)) score -= 1000;
-  if (isStartOperation(operation)) score += 80;
-  if (operation.method === 'POST') score += 25;
-  if (operation.path.includes('{')) score -= 20;
-  if (operation.tags.length > 0) score += 10;
+  if (isStartOperation(operation)) score += 90;
+  if (operation.method === 'POST') score += 30;
+  if (operation.method === 'PATCH' || operation.method === 'PUT') score += 8;
+  if (operation.path.includes('{')) score -= 25;
+  if (operation.tags.length > 0) score += 8;
+
+  const bestOutgoingEdge = outgoingEdges
+    .filter((edge) => edge.sourceOperationId === operation.operationId)
+    .sort((left, right) => right.score - left.score)[0];
+  if (bestOutgoingEdge) {
+    score += Math.min(bestOutgoingEdge.score, 140);
+  }
+
   return score;
 }
 
-function scoreNextOperation(candidate: SpecOperation, previous: SpecOperation, chosen: SpecOperation[]): number {
-  if (isExcludedOperation(candidate)) return -1000;
-  if (chosen.some((operation) => operation.operationId === candidate.operationId)) return -1000;
+function scoreFieldMatch(requestField: OperationField, responseField: ResponseField): number {
+  const requestVariants = [
+    requestField.key,
+    requestField.label,
+    lastSegment(requestField.key),
+    lastSegment(requestField.label)
+  ].map(compact);
+  const responseVariants = [
+    responseField.key,
+    responseField.label,
+    responseField.jsonPath,
+    lastSegment(responseField.key),
+    lastSegment(responseField.label),
+    lastSegment(responseField.jsonPath)
+  ].map(compact);
 
-  const previousResource = getPrimaryResource(previous);
-  const candidateResource = getPrimaryResource(candidate);
-  const candidateTokens = new Set([...tokenize(candidate.operationId), ...tokenize(candidate.summary), ...tokenize(candidate.path)]);
-  const previousTokens = new Set([...tokenize(previous.operationId), ...tokenize(previous.summary), ...tokenize(previous.path)]);
+  let score = 0;
+  if (requestVariants.some((request) => responseVariants.includes(request))) {
+    score += 92;
+  }
+  if (
+    requestVariants.some((request) =>
+      responseVariants.some((response) => request.length > 2 && response.length > 2 && (request.endsWith(response) || response.endsWith(request)))
+    )
+  ) {
+    score += 58;
+  }
+  if (isIdLike(requestField.key) && responseVariants.some((variant) => isIdLike(variant))) {
+    score += 24;
+  }
 
+  const requestTokens = new Set([...tokenize(requestField.key), ...tokenize(requestField.label)]);
+  const responseTokens = new Set([...tokenize(responseField.key), ...tokenize(responseField.label), ...tokenize(responseField.jsonPath)]);
   let sharedTokens = 0;
-  for (const token of candidateTokens) {
-    if (previousTokens.has(token)) {
+  for (const token of requestTokens) {
+    if (responseTokens.has(token)) {
       sharedTokens += 1;
     }
   }
+  score += sharedTokens * 16;
 
-  let score = sharedTokens * 18;
-  if (candidateResource === previousResource) score += 40;
-  if (candidate.method === 'GET' && candidate.path.includes('{')) score += 22;
-  if (candidate.method === 'GET' && !candidate.path.includes('{')) score -= 24;
-  if (candidate.method === 'POST') score += 20;
-  if (candidate.method === 'PATCH' || candidate.method === 'PUT') score += 12;
-  if (candidate.path.includes('{')) score += 10;
-  if (candidate.operationId.toLowerCase().includes('list')) score -= 32;
-  if (candidate.operationId.toLowerCase().includes('history')) score -= 10;
+  if (requestField.location === 'path') score += 28;
+  if (requestField.location === 'query') score += 10;
+  if (requestField.required) score += 12;
+  if (requestField.type && responseField.type && requestField.type === responseField.type) score += 6;
+
   return score;
 }
 
-function findSupportingRead(baseOperation: SpecOperation, operations: SpecOperation[], chosen: SpecOperation[]): SpecOperation | undefined {
-  const baseResource = getPrimaryResource(baseOperation);
-  return operations
-    .filter((operation) => !chosen.some((entry) => entry.operationId === operation.operationId))
-    .filter((operation) => operation.method === 'GET' && operation.path.includes('{'))
-    .filter((operation) => getPrimaryResource(operation) === baseResource)
-    .sort((left, right) => scoreNextOperation(right, baseOperation, chosen) - scoreNextOperation(left, baseOperation, chosen))[0];
+function createMatchMessage(source: SpecOperation, target: SpecOperation, requestField: OperationField, responseField: ResponseField): string {
+  return `${source.operationId} returns ${responseField.label} (${responseField.jsonPath}), which can satisfy ${target.operationId} ${requestField.location} field ${requestField.key}.`;
+}
+
+function getBestFieldMatch(source: SpecOperation, target: SpecOperation, requestField: OperationField): SourceCandidate | undefined {
+  const best = source.responseFields
+    .map((responseField) => {
+      const score = scoreFieldMatch(requestField, responseField);
+      return {
+        stepId: '',
+        stepLabel: source.summary,
+        operationId: source.operationId,
+        responseField,
+        variableName: createVariableName(source.operationId, responseField),
+        score,
+        confidence: confidenceForScore(score),
+        message: createMatchMessage(source, target, requestField, responseField)
+      };
+    })
+    .filter((candidate) => candidate.score >= 45)
+    .sort((left, right) => right.score - left.score)[0];
+
+  return best;
+}
+
+function scoreOperationRelationship(source: SpecOperation, target: SpecOperation): number {
+  let score = 0;
+  const sameResource = getPrimaryResource(source) === getPrimaryResource(target);
+  if (sameResource) score += 42;
+  if (source.method === 'POST' && target.method === 'GET' && target.path.includes('{')) score += 32;
+  if (source.method === 'POST' && target.path.includes('{')) score += 12;
+  if (target.method === 'GET' && !target.path.includes('{')) score -= 35;
+  if (target.operationId.toLowerCase().includes('list')) score -= 40;
+
+  const sourceTokens = new Set([...tokenize(source.operationId), ...tokenize(source.summary), ...tokenize(source.path)]);
+  const targetTokens = new Set([...tokenize(target.operationId), ...tokenize(target.summary), ...tokenize(target.path)]);
+  for (const token of targetTokens) {
+    if (sourceTokens.has(token)) {
+      score += 10;
+    }
+  }
+
+  return score;
+}
+
+function buildDependencyEdges(operations: SpecOperation[]): DependencyEdge[] {
+  const edges: DependencyEdge[] = [];
+
+  for (const source of operations) {
+    for (const target of operations) {
+      if (source.operationId === target.operationId || isExcludedOperation(source) || isExcludedOperation(target)) {
+        continue;
+      }
+
+      const requiredOrAddressingFields = target.fields.filter(
+        (field) => field.required || field.location === 'path' || field.location === 'query' || isIdLike(field.key)
+      );
+      const matches = requiredOrAddressingFields
+        .map((field) => ({ field, match: getBestFieldMatch(source, target, field) }))
+        .filter((entry): entry is { field: OperationField; match: SourceCandidate } => Boolean(entry.match))
+        .sort((left, right) => right.match.score - left.match.score);
+      const bestMatch = matches[0];
+      if (!bestMatch) {
+        continue;
+      }
+
+      const relationshipScore = scoreOperationRelationship(source, target);
+      const score = bestMatch.match.score + relationshipScore;
+      if (score < 55) {
+        continue;
+      }
+
+      edges.push({
+        sourceOperationId: source.operationId,
+        targetOperationId: target.operationId,
+        score,
+        confidence: confidenceForScore(score),
+        message: bestMatch.match.message,
+        targetFieldKey: bestMatch.field.key,
+        responseField: bestMatch.match.responseField
+      });
+    }
+  }
+
+  return edges.sort((left, right) => right.score - left.score);
 }
 
 function collectJourneyOperations(specContext: SpecContext): SpecOperation[] {
   const candidates = specContext.operations.filter((operation) => !isExcludedOperation(operation));
-  const start = [...candidates].sort((left, right) => scoreStartOperation(right) - scoreStartOperation(left))[0];
+  const operationById = new Map(candidates.map((operation) => [operation.operationId, operation]));
+  const edges = buildDependencyEdges(candidates);
+  const start = [...candidates].sort((left, right) => scoreStartOperation(right, edges) - scoreStartOperation(left, edges))[0];
   if (!start) {
     return [];
   }
 
   const chosen: SpecOperation[] = [start];
-  const initialRead = findSupportingRead(start, candidates, chosen);
-  if (initialRead) {
-    chosen.push(initialRead);
-  }
+  const chosenIds = new Set([start.operationId]);
 
   while (chosen.length < JOURNEY_STEP_LIMIT) {
-    const previous = chosen[chosen.length - 1] ?? start;
-    const next = [...candidates]
-      .map((operation) => ({ operation, score: scoreNextOperation(operation, previous, chosen) }))
-      .filter((entry) => entry.score > 30)
-      .sort((left, right) => right.score - left.score)[0]?.operation;
+    const nextEdge = edges
+      .filter((edge) => chosenIds.has(edge.sourceOperationId) && !chosenIds.has(edge.targetOperationId))
+      .filter((edge) => edge.score >= MIN_EDGE_SCORE)
+      .sort((left, right) => {
+        const currentSourceBonus = left.sourceOperationId === chosen[chosen.length - 1]?.operationId ? 12 : 0;
+        const otherCurrentSourceBonus = right.sourceOperationId === chosen[chosen.length - 1]?.operationId ? 12 : 0;
+        return right.score + otherCurrentSourceBonus - (left.score + currentSourceBonus);
+      })[0];
 
+    if (!nextEdge) {
+      break;
+    }
+
+    const next = operationById.get(nextEdge.targetOperationId);
     if (!next) {
       break;
     }
 
     chosen.push(next);
-
-    const supportingRead = findSupportingRead(next, candidates, chosen);
-    if (supportingRead && chosen.length < JOURNEY_STEP_LIMIT) {
-      chosen.push(supportingRead);
-    }
+    chosenIds.add(next.operationId);
   }
 
   return chosen;
 }
 
-function findBindingCandidates(fieldKey: string, stepCandidates: SourceCandidate[]): SourceCandidate[] {
-  const normalizedKey = normalizeToken(fieldKey);
-  const compactKey = normalizedKey.replace(/-/g, '');
-  return stepCandidates.filter((candidate) => {
-    const candidateLabel = normalizeToken(candidate.responseField.label);
-    const candidatePath = normalizeToken(candidate.responseField.jsonPath);
-    const candidateCompact = candidateLabel.replace(/-/g, '');
-    if (candidateCompact === compactKey) return true;
-    if (candidateCompact.endsWith(compactKey)) return true;
-    if (compactKey.endsWith(candidateCompact)) return true;
-    if (candidatePath.endsWith(normalizedKey)) return true;
-    if (isIdLike(fieldKey) && isIdLike(candidate.responseField.label)) return true;
-    return false;
-  });
-}
-
-function buildAvailableCandidates(previousSteps: Array<{ step: FlowStep; operation: SpecOperation }>): SourceCandidate[] {
-  return previousSteps.flatMap(({ step, operation }) =>
-    step.extract
-      .map((extract) => {
-        const responseField = operation.responseFields.find((field) => field.jsonPath === extract.jsonPath);
-        if (!responseField) {
-          return undefined;
-        }
+function findBindingCandidates(field: OperationField, previousSteps: Array<{ step: FlowStep; operation: SpecOperation }>, targetOperation: SpecOperation): SourceCandidate[] {
+  return previousSteps
+    .flatMap(({ step, operation }) =>
+      operation.responseFields.map((responseField) => {
+        const score = scoreFieldMatch(field, responseField) + scoreOperationRelationship(operation, targetOperation);
         return {
           stepId: step.id,
           stepLabel: step.name?.trim() || operation.summary,
           operationId: operation.operationId,
           responseField,
-          variableName: extract.variable
+          variableName: createVariableName(operation.operationId, responseField),
+          score,
+          confidence: confidenceForScore(score),
+          message: createMatchMessage(operation, targetOperation, field, responseField)
         };
       })
-      .filter((candidate): candidate is SourceCandidate => Boolean(candidate))
-  );
+    )
+    .filter((candidate) => candidate.score >= 50)
+    .sort((left, right) => right.score - left.score);
 }
 
-function ensureExtract(step: FlowStep, operation: SpecOperation, candidate: SourceCandidate): void {
+function ensureExtract(step: FlowStep, candidate: SourceCandidate, reason: FlowDetectionReason): void {
   const exists = step.extract.some((extract) => extract.jsonPath === candidate.responseField.jsonPath);
   if (exists) {
     return;
@@ -199,21 +333,18 @@ function ensureExtract(step: FlowStep, operation: SpecOperation, candidate: Sour
   step.extract.push({
     id: createExtractId(),
     variable: candidate.variableName,
-    jsonPath: candidate.responseField.jsonPath
+    jsonPath: candidate.responseField.jsonPath,
+    detectionReason: reason
   });
 }
 
-function buildAmbiguityPrompt(
-  targetOperation: SpecOperation,
-  fieldKey: string,
-  candidates: SourceCandidate[]
-): AmbiguityPrompt {
+function buildAmbiguityPrompt(targetOperation: SpecOperation, fieldKey: string, candidates: SourceCandidate[]): AmbiguityPrompt {
   return {
     id: `${targetOperation.operationId}:${fieldKey}`,
     question: `Which prior output should supply "${fieldKey}" for ${targetOperation.operationId}?`,
-    choices: candidates.map((candidate) => ({
-      label: `${candidate.operationId} → ${candidate.responseField.label}`,
-      reason: `${candidate.stepLabel} exposes ${candidate.responseField.jsonPath}, which looks compatible with ${fieldKey}.`,
+    choices: candidates.slice(0, 4).map((candidate) => ({
+      label: `${candidate.operationId} -> ${candidate.responseField.label}`,
+      reason: candidate.message,
       sourceOperationId: candidate.operationId,
       sourceFieldJsonPath: candidate.responseField.jsonPath,
       targetOperationId: targetOperation.operationId,
@@ -223,90 +354,97 @@ function buildAmbiguityPrompt(
   };
 }
 
+function createDataDependencyReason(candidate: SourceCandidate): FlowDetectionReason {
+  return {
+    type: 'data_dependency',
+    confidence: candidate.confidence,
+    message: candidate.message
+  };
+}
+
 function buildBindingsForOperation(
   operation: SpecOperation,
   previousSteps: Array<{ step: FlowStep; operation: SpecOperation }>,
   overrides: Record<string, AmbiguityChoice>
 ): { bindings: BindingConfig[]; prompt?: AmbiguityPrompt } {
   const bindings: BindingConfig[] = [];
-  const availableCandidates = buildAvailableCandidates(previousSteps);
 
   for (const field of operation.fields) {
     const overrideKey = `${operation.operationId}:${field.key}`;
-    const candidates = findBindingCandidates(field.key, availableCandidates);
-    const shouldPreferPriorOutput = field.location === 'path' || isIdLike(field.key);
+    const candidates = findBindingCandidates(field, previousSteps, operation);
+    const best = candidates[0];
+    const second = candidates[1];
+    const hasCloseAmbiguity = Boolean(best && second && best.score - second.score <= CLOSE_MATCH_DELTA);
 
-    if (candidates.length > 1 && !overrides[overrideKey]) {
+    if (hasCloseAmbiguity && !overrides[overrideKey]) {
       return { bindings, prompt: buildAmbiguityPrompt(operation, field.key, candidates) };
     }
 
-    if (overrides[overrideKey]) {
-      const override = overrides[overrideKey];
-      const chosenCandidate = candidates.find(
-        (candidate) =>
-          candidate.operationId === override.sourceOperationId &&
-          candidate.responseField.jsonPath === override.sourceFieldJsonPath
-      );
-      if (chosenCandidate) {
-        const sourceStep = previousSteps.find((entry) => entry.step.id === chosenCandidate.stepId);
-        if (sourceStep) {
-          ensureExtract(sourceStep.step, sourceStep.operation, chosenCandidate);
-        }
-        bindings.push({
-          fieldKey: field.key,
-          source: 'prior_output',
-          sourceStepId: chosenCandidate.stepId,
-          variable: chosenCandidate.variableName
-        });
-        continue;
-      }
-    }
+    const override = overrides[overrideKey];
+    const chosenCandidate = override
+      ? candidates.find(
+          (candidate) =>
+            candidate.operationId === override.sourceOperationId &&
+            candidate.responseField.jsonPath === override.sourceFieldJsonPath
+        )
+      : best;
 
-    if (candidates.length === 1 && shouldPreferPriorOutput) {
-      const chosenCandidate = candidates[0];
+    if (chosenCandidate && (field.required || field.location === 'path' || field.location === 'query' || chosenCandidate.score >= 85)) {
       const sourceStep = previousSteps.find((entry) => entry.step.id === chosenCandidate.stepId);
+      const reason = createDataDependencyReason(chosenCandidate);
       if (sourceStep) {
-        ensureExtract(sourceStep.step, sourceStep.operation, chosenCandidate);
+        ensureExtract(sourceStep.step, chosenCandidate, reason);
       }
       bindings.push({
         fieldKey: field.key,
         source: 'prior_output',
         sourceStepId: chosenCandidate.stepId,
-        variable: chosenCandidate.variableName
+        variable: chosenCandidate.variableName,
+        detectionReason: reason
       });
       continue;
     }
 
-    if (field.example) {
-      bindings.push({
-        fieldKey: field.key,
-        source: 'example'
-      });
-      continue;
-    }
-
-    if (candidates.length === 1) {
-      const chosenCandidate = candidates[0];
-      const sourceStep = previousSteps.find((entry) => entry.step.id === chosenCandidate.stepId);
-      if (sourceStep) {
-        ensureExtract(sourceStep.step, sourceStep.operation, chosenCandidate);
-      }
-      bindings.push({
-        fieldKey: field.key,
-        source: 'prior_output',
-        sourceStepId: chosenCandidate.stepId,
-        variable: chosenCandidate.variableName
-      });
-      continue;
-    }
-
+    const fallbackReason: FlowDetectionReason = {
+      type: 'fallback_example',
+      confidence: field.example ? 'medium' : 'low',
+      message: field.example
+        ? `${operation.operationId}.${field.key} uses the example value from the OpenAPI schema.`
+        : `${operation.operationId}.${field.key} has no detected prior output, so Surface 2 will rely on an editable example value.`
+    };
     bindings.push({
       fieldKey: field.key,
-      source: 'example'
+      source: 'example',
+      detectionReason: fallbackReason
     });
   }
 
   return { bindings };
+}
+
+function createStepForOperation(operation: SpecOperation, index: number): FlowStep {
+  const startReason: FlowDetectionReason =
+    index === 0
+      ? {
+          type: 'start_operation',
+          confidence: isStartOperation(operation) ? 'high' : 'medium',
+          message: `${operation.operationId} is the best smoke-flow start because it looks like a customer-facing write operation.`
+        }
+      : {
+          type: 'data_dependency',
+          confidence: 'medium',
+          message: `${operation.operationId} was selected because earlier responses appear to satisfy its request inputs.`
+        };
+
+  return {
+    id: createStepId(),
+    operationId: operation.operationId,
+    name: operation.summary,
+    description: operation.description,
+    bindings: [],
+    extract: [],
+    detectionReasons: [startReason]
+  };
 }
 
 export function generateDraftFlow(specContext: SpecContext, overrides: Record<string, AmbiguityChoice> = {}): DraftResolution {
@@ -324,23 +462,8 @@ export function generateDraftFlow(specContext: SpecContext, overrides: Record<st
 
   const previousSteps: Array<{ step: FlowStep; operation: SpecOperation }> = [];
 
-  for (const operation of journeyOperations) {
-    const step: FlowStep = {
-      id: createStepId(),
-      operationId: operation.operationId,
-      name: operation.summary,
-      description: operation.description,
-      bindings: [],
-      extract: operation.responseFields
-        .filter((field) => isIdLike(field.label) || field.jsonPath === '$.id')
-        .slice(0, 2)
-        .map((field) => ({
-          id: createExtractId(),
-          variable: createVariableName(operation.operationId, field),
-          jsonPath: field.jsonPath
-        }))
-    };
-
+  for (const [index, operation] of journeyOperations.entries()) {
+    const step = createStepForOperation(operation, index);
     const bindingResult = buildBindingsForOperation(operation, previousSteps, overrides);
     if (bindingResult.prompt) {
       return {
@@ -353,6 +476,11 @@ export function generateDraftFlow(specContext: SpecContext, overrides: Record<st
     previousSteps.push({ step, operation });
     flow.steps.push(step);
   }
+
+  flow.detectionScore = flow.steps.reduce(
+    (score, step) => score + step.bindings.filter((binding) => binding.source === 'prior_output').length * 25 - step.bindings.filter((binding) => binding.source === 'example').length * 3,
+    0
+  );
 
   return {
     flow,

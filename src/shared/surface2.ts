@@ -4,18 +4,26 @@ export type FlowType = 'smoke';
 
 export type BindingSource = 'example' | 'literal' | 'prior_output';
 
+export type FlowDetectionReason = {
+  type: 'start_operation' | 'supporting_read' | 'data_dependency' | 'fallback_example';
+  confidence: 'high' | 'medium' | 'low';
+  message: string;
+};
+
 export type BindingConfig = {
   fieldKey: string;
   source: BindingSource;
   value?: string;
   sourceStepId?: string;
   variable?: string;
+  detectionReason?: FlowDetectionReason;
 };
 
 export type ExtractionConfig = {
   id: string;
   variable: string;
   jsonPath: string;
+  detectionReason?: FlowDetectionReason;
 };
 
 export type FlowStep = {
@@ -25,6 +33,7 @@ export type FlowStep = {
   description?: string;
   bindings: BindingConfig[];
   extract: ExtractionConfig[];
+  detectionReasons?: FlowDetectionReason[];
 };
 
 export type FlowDefinition = {
@@ -32,6 +41,7 @@ export type FlowDefinition = {
   name: string;
   type: FlowType;
   steps: FlowStep[];
+  detectionScore?: number;
 };
 
 export type AmbiguityChoice = {

@@ -227,9 +227,24 @@ export function Surface2Workspace({ specContext, onExportSuccess }: Props): Reac
     const fieldLabel = operation?.fields.find((field) => field.key === binding.fieldKey)?.label ?? binding.fieldKey;
     if (binding.source === 'prior_output') {
       const sourceStep = draft?.flow.steps.find((candidate) => candidate.id === binding.sourceStepId);
-      return `${sourceStep?.name?.trim() || sourceStep?.operationId || 'prior step'}:${binding.variable || 'variable'} -> ${fieldLabel}`;
+      const confidence = binding.detectionReason?.confidence ? ` (${binding.detectionReason.confidence})` : '';
+      return `${sourceStep?.name?.trim() || sourceStep?.operationId || 'prior step'}:${binding.variable || 'variable'} -> ${fieldLabel}${confidence}`;
     }
     return `${fieldLabel} uses ${binding.source}`;
+  }
+
+  function getDetectionReasons(): string[] {
+    if (!draft) {
+      return [];
+    }
+
+    const reasonMessages = draft.flow.steps.flatMap((step) => [
+      ...(step.detectionReasons ?? []),
+      ...step.bindings.flatMap((binding) => (binding.detectionReason ? [binding.detectionReason] : [])),
+      ...step.extract.flatMap((extract) => (extract.detectionReason ? [extract.detectionReason] : []))
+    ]);
+
+    return [...new Map(reasonMessages.map((reason) => [`${reason.confidence}:${reason.message}`, `${reason.confidence}: ${reason.message}`])).values()];
   }
 
   function getReviewWarnings(): string[] {
@@ -382,6 +397,16 @@ export function Surface2Workspace({ specContext, onExportSuccess }: Props): Reac
                         <code>{operation?.path ?? step.operationId}</code>
                       </p>
                       <small>{step.operationId}</small>
+                      {step.detectionReasons?.length ? (
+                        <ul className="surface2-review-reasons">
+                          {step.detectionReasons.map((reason) => (
+                            <li key={`${step.id}-${reason.message}`}>
+                              <span className={`surface2-confidence ${reason.confidence}`}>{reason.confidence}</span>
+                              {reason.message}
+                            </li>
+                          ))}
+                        </ul>
+                      ) : null}
                     </div>
                   </div>
                 );
@@ -390,6 +415,19 @@ export function Surface2Workspace({ specContext, onExportSuccess }: Props): Reac
           </section>
 
           <aside className="surface2-review-side">
+            <section className="surface2-review-card">
+              <h3>Why this flow</h3>
+              {getDetectionReasons().length > 0 ? (
+                <ul className="surface2-review-list">
+                  {getDetectionReasons().map((reason) => (
+                    <li key={reason}>{reason}</li>
+                  ))}
+                </ul>
+              ) : (
+                <p>No detection reasons available.</p>
+              )}
+            </section>
+
             <section className="surface2-review-card">
               <h3>Data handoffs</h3>
               {draft.flow.steps.some((step) => step.bindings.some((binding) => binding.source === 'prior_output')) ? (

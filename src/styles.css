@@ -898,6 +898,43 @@ code {
   gap: 0.45rem;
 }
 
+.surface2-review-reasons {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin: 0.65rem 0 0;
+  padding-left: 0;
+  list-style: none;
+  color: var(--ink-soft);
+  font-size: 0.88rem;
+}
+
+.surface2-confidence {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.14rem 0.45rem;
+  margin-right: 0.35rem;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.surface2-confidence.high {
+  background: rgba(95, 165, 127, 0.16);
+  color: #2c5d44;
+}
+
+.surface2-confidence.medium {
+  background: rgba(255, 179, 0, 0.16);
+  color: #8a5a00;
+}
+
+.surface2-confidence.low {
+  background: rgba(194, 91, 91, 0.16);
+  color: #6d2020;
+}
+
 .method-chip {
   display: inline-flex;
   align-items: center;

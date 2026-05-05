@@ -95,6 +95,106 @@ const SPEC_CONTEXT: SpecContext = {
   ]
 };
 
+const BUSINESS_KEY_CONTEXT: SpecContext = {
+  serviceKey: 'remote-pos',
+  source: 'upload',
+  acquisition: {
+    sourceLabel: 'Uploaded OpenAPI file',
+    importedAt: '2026-04-27T12:00:00.000Z'
+  },
+  document: {
+    name: 'Remote POS API',
+    version: '1.0.0',
+    format: 'openapi_3',
+    originalPath: '/tmp/openapi.yaml',
+    normalizedPath: '/tmp/openapi.yaml'
+  },
+  validation: {
+    valid: true,
+    errors: [],
+    warnings: []
+  },
+  summary: {
+    endpointCount: 4,
+    pathCount: 3,
+    operationCount: 4,
+    tags: ['remote-pos'],
+    servers: ['https://api.example.com'],
+    securitySchemes: ['bearerAuth'],
+    excludedOperationCount: 0,
+    syntheticOperationCount: 0
+  },
+  operations: [
+    {
+      operationId: 'createRemoteInvoice',
+      method: 'POST',
+      path: '/remote-invoices',
+      tags: ['remote-pos'],
+      summary: 'Create remote invoice',
+      fields: [
+        {
+          key: 'customer.customerNumber',
+          label: 'customerNumber',
+          location: 'body',
+          required: true,
+          type: 'number',
+          example: '90001234'
+        }
+      ],
+      responseFields: [
+        {
+          key: 'invoiceNumber',
+          label: 'invoiceNumber',
+          jsonPath: '$.invoiceNumber',
+          type: 'string'
+        }
+      ]
+    },
+    {
+      operationId: 'getRemoteInvoice',
+      method: 'GET',
+      path: '/remote-invoices/{invoiceNumber}',
+      tags: ['remote-pos'],
+      summary: 'Get remote invoice',
+      fields: [
+        {
+          key: 'invoiceNumber',
+          label: 'invoiceNumber',
+          location: 'path',
+          required: true,
+          type: 'string'
+        }
+      ],
+      responseFields: [
+        {
+          key: 'invoiceNumber',
+          label: 'invoiceNumber',
+          jsonPath: '$.invoiceNumber',
+          type: 'string'
+        }
+      ]
+    },
+    {
+      operationId: 'listRemoteInvoices',
+      method: 'GET',
+      path: '/remote-invoices',
+      tags: ['remote-pos'],
+      summary: 'List remote invoices',
+      fields: [],
+      responseFields: []
+    },
+    {
+      operationId: 'optionsRemoteInvoices',
+      method: 'OPTIONS',
+      path: '/remote-invoices',
+      tags: ['remote-pos'],
+      summary: 'Options remote invoices',
+      fields: [],
+      responseFields: []
+    }
+  ]
+};
+
 describe('Surface 2 generator', () => {
   it('builds one happy-path smoke flow with supporting reads and bindings', () => {
     const result = generateDraftFlow(SPEC_CONTEXT);
@@ -128,5 +228,33 @@ describe('Surface 2 generator', () => {
     expect(validateFlow(draft.flow, SPEC_CONTEXT.operations)).toEqual([]);
     expect(exportManifestYaml(draft)).toContain('type: smoke');
     expect(exportManifestYaml(draft)).toContain('operationId: createPayment');
+  });
+
+  it('extracts business identifiers when downstream steps need them', () => {
+    const result = generateDraftFlow(BUSINESS_KEY_CONTEXT);
+
+    expect(result.pendingAmbiguity).toBeUndefined();
+    expect(result.flow?.steps.map((step) => step.operationId)).toEqual(['createRemoteInvoice', 'getRemoteInvoice']);
+
+    const createStep = result.flow?.steps[0];
+    const readStep = result.flow?.steps[1];
+    expect(createStep?.extract).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          variable: 'createRemoteInvoice.invoiceNumber',
+          jsonPath: '$.invoiceNumber'
+        })
+      ])
+    );
+    expect(readStep?.bindings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          fieldKey: 'invoiceNumber',
+          source: 'prior_output',
+          variable: 'createRemoteInvoice.invoiceNumber'
+        })
+      ])
+    );
+    expect(readStep?.bindings[0]?.detectionReason?.message).toContain('invoiceNumber');
   });
 });
