@@ -140,7 +140,7 @@ describe('Surface 4 generator', () => {
       expect(readFileSync(path.join(generatedRoot, '.cse-buddy', 'flows', 'payments', 'flow.yaml'), 'utf8')).toContain('Payments API happy path');
       expect(readFileSync(path.join(generatedRoot, '.github', 'workflows', 'postman-pr-validation.yml'), 'utf8')).toContain('Postman PR Validation');
       expect(readFileSync(path.join(generatedRoot, '.github', 'workflows', 'postman-smoke-flow-onboarding.yml'), 'utf8')).toContain('postman-smoke-flow-action');
-      expect(readFileSync(path.join(generatedRoot, 'README.md'), 'utf8')).toContain('POSTMAN_API_KEY');
+      expect(readFileSync(path.join(generatedRoot, 'POSTMAN_ONBOARDING.md'), 'utf8')).toContain('POSTMAN_API_KEY');
       expect(result.summary.files.length).toBe(5);
       expect(result.summary.generatedRoot).toContain('/.cse-buddy/surface4/payments/generated');
 
@@ -168,7 +168,7 @@ describe('Surface 4 generator', () => {
       expect(readFileSync(path.join(exportTarget, '.github', 'workflows', 'postman-pr-validation.yml'), 'utf8')).toContain(
         'Postman PR Validation'
       );
-      expect(readFileSync(path.join(exportTarget, 'README.md'), 'utf8')).toContain('How To Use These Artifacts');
+      expect(readFileSync(path.join(exportTarget, 'POSTMAN_ONBOARDING.md'), 'utf8')).toContain('How To Use These Artifacts');
     } finally {
       electronState.appDataPath = '';
       rmSync(appDataPath, { recursive: true, force: true });

@@ -91,6 +91,6 @@ contextBridge.exposeInMainWorld('surface4', {
   loadState: (input) => ipcRenderer.invoke(surface4Channels.loadState, input),
   generateArtifacts: (input) => ipcRenderer.invoke(surface4Channels.generateArtifacts, input),
   revealBundle: (serviceKey) => ipcRenderer.invoke(surface4Channels.revealBundle, normalizeServiceKey(serviceKey, 'Reveal bundle')),
-  openReadme: (serviceKey) => ipcRenderer.invoke(surface4Channels.openReadme, normalizeServiceKey(serviceKey, 'Open README')),
+  openReadme: (serviceKey) => ipcRenderer.invoke(surface4Channels.openReadme, normalizeServiceKey(serviceKey, 'Open guide')),
   exportBundle: (serviceKey) => ipcRenderer.invoke(surface4Channels.exportBundle, normalizeServiceKey(serviceKey, 'Export bundle'))
 });

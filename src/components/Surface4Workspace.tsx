@@ -2,6 +2,7 @@ import type { ReactElement } from 'react';
 import { useEffect, useState } from 'react';
 
 import { getSurface2FlowPath } from '../lib/surface3/config.js';
+import { getGeneratedSetupDocRelativePath } from '../lib/surface4/paths.js';
 import type { SpecContext } from '../shared/surface1.js';
 import type { CICDConfig } from '../shared/surface3.js';
 import type { Surface4LoadStateResult } from '../shared/surface4.js';
@@ -49,9 +50,9 @@ function describeGeneratedFile(filePath: string): ManifestEntry {
       path: filePath
     };
   }
-  if (filePath.endsWith('/README.md')) {
+  if (filePath.endsWith(`/${getGeneratedSetupDocRelativePath()}`)) {
     return {
-      label: 'Bundle README',
+      label: 'Postman onboarding guide',
       description: 'Guides a first-time user through secrets, workflows, and a safe first run.',
       path: filePath
     };
@@ -183,7 +184,7 @@ export function Surface4Workspace({ specContext }: Props): ReactElement {
   const manifestEntries = (state?.expectedFiles ?? []).map(describeGeneratedFile);
   const generatedEntries = (state?.summary?.files ?? []).map(describeGeneratedFile);
   const generatedRoot = state?.summary?.generatedRoot ?? state?.generatedRoot ?? `.cse-buddy/surface4/${specContext.serviceKey}/generated`;
-  const setupDocPath = state?.summary?.setupDocPath ?? `${generatedRoot}/README.md`;
+  const setupDocPath = state?.summary?.setupDocPath ?? `${generatedRoot}/${getGeneratedSetupDocRelativePath()}`;
   const environmentLabels = state?.config?.environments.map((environment) => environment.label).join(', ');
 
   return (
@@ -203,7 +204,7 @@ export function Surface4Workspace({ specContext }: Props): ReactElement {
                 Reveal bundle
               </button>
               <button type="button" onClick={() => void handleOpenGeneratedReadme()}>
-                Open README
+                Open guide
               </button>
               <button type="button" className="primary" onClick={() => void handleExportBundle()}>
                 Export to folder
@@ -264,12 +265,12 @@ export function Surface4Workspace({ specContext }: Props): ReactElement {
                   </div>
                 </div>
                 <div className="surface4-card">
-                  <strong>README</strong>
+                  <strong>Postman onboarding guide</strong>
                   <p>Open this first for the workflow steps, secrets, and first-run guidance.</p>
                   <code>{setupDocPath}</code>
                   <div className="inline-actions">
                     <button type="button" onClick={() => void handleOpenGeneratedReadme()}>
-                      Open README
+                      Open guide
                     </button>
                   </div>
                 </div>
@@ -278,7 +279,7 @@ export function Surface4Workspace({ specContext }: Props): ReactElement {
               <h3>Next steps</h3>
               <div className="surface4-card">
                 <ul className="surface4-list">
-                  <li>Open the generated <code>README.md</code> in the staged bundle.</li>
+                  <li>Open the generated <code>{getGeneratedSetupDocRelativePath()}</code> in the staged bundle.</li>
                   <li>Use <code>Export to folder</code> to place the repo-ready files into a new or existing service repo.</li>
                   <li>Add the required GitHub secrets: <code>POSTMAN_API_KEY</code> and <code>POSTMAN_ACCESS_TOKEN</code>.</li>
                   <li>Review the generated workflows and staged service files before copying them into a target repo.</li>

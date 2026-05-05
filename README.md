@@ -38,7 +38,7 @@ For each service, CSE Buddy can generate:
   - PR validation workflow
   - smoke flow onboarding workflow
   - staged spec and flow files
-  - a generated README for first-time setup
+  - a generated `POSTMAN_ONBOARDING.md` guide for first-time setup
 
 All generated service artifacts are stored under the selected workspace’s `.cse-buddy/` directory.
 
@@ -269,10 +269,10 @@ For a realistic packaged-app test:
 7. use the app actions to:
    - open the active workspace folder
    - reveal the generated bundle
-   - open the generated `README.md`
+   - open the generated `POSTMAN_ONBOARDING.md`
 8. confirm all generated artifacts live under that workspace’s `.cse-buddy/` directory
 
-The generated Surface 4 README is the handoff artifact for first-time users. It should be the first file reviewed after bundle generation.
+The generated Surface 4 `POSTMAN_ONBOARDING.md` guide is the handoff artifact for first-time users. It should be the first file reviewed after bundle generation.
 
 ## App State vs Workspace State
 

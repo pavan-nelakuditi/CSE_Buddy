@@ -36,7 +36,7 @@ This generated bundle came from **CSE Buddy Surface 4**. It is designed to help 
   - A pull request workflow that runs Postman spec lint and governance checks.
 - \`.github/workflows/postman-smoke-flow-onboarding.yml\`
   - An onboarding workflow that runs bootstrap, smoke-flow apply, and repo-sync.
-- \`README.md\`
+- \`POSTMAN_ONBOARDING.md\`
   - This guide.
 
 ## How To Use These Artifacts
@@ -48,8 +48,8 @@ You can use this bundle in one of two ways.
 Use this path when the service does not already have a GitHub repository or when you want a clean onboarding harness.
 
 1. create a new GitHub repository for the service
-2. place the generated files at the same paths shown in this README
-3. commit the generated spec, flow file, workflow files, and this README
+2. place the generated files at the same paths shown in this guide
+3. commit the generated spec, flow file, workflow files, and this guide
 4. add the required GitHub secrets
 5. run the onboarding workflow manually first
 

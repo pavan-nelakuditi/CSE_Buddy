@@ -52,7 +52,7 @@ on:
     paths-ignore:
       - '.postman/**'
       - 'postman/**'
-      - 'README.md'
+      - 'POSTMAN_ONBOARDING.md'
 
 jobs:
   onboarding:

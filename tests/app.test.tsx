@@ -104,7 +104,7 @@ describe('App', () => {
         '.cse-buddy/surface4/payments/generated/.cse-buddy/flows/payments/flow.yaml',
         '.cse-buddy/surface4/payments/generated/.github/workflows/postman-pr-validation.yml',
         '.cse-buddy/surface4/payments/generated/.github/workflows/postman-smoke-flow-onboarding.yml',
-        '.cse-buddy/surface4/payments/generated/README.md'
+        '.cse-buddy/surface4/payments/generated/POSTMAN_ONBOARDING.md'
       ]
     });
     vi.mocked(mockSurface4.generateArtifacts).mockResolvedValue({
@@ -114,7 +114,7 @@ describe('App', () => {
         generatedAt: '2026-04-30T00:00:00.000Z',
         files: ['/tmp/generated/api/openapi.yaml'],
         workflowPaths: ['/tmp/.github/workflows/postman-pr-validation.yml'],
-        setupDocPath: '/tmp/README.md',
+        setupDocPath: '/tmp/POSTMAN_ONBOARDING.md',
         generatedRoot: '/tmp/generated',
         generatedSpecPath: '/tmp/generated/api/openapi.yaml',
         generatedFlowPath: '/tmp/generated/.cse-buddy/flows/payments/flow.yaml'
@@ -124,7 +124,7 @@ describe('App', () => {
     vi.mocked(mockSurface4.openReadme).mockResolvedValue();
     vi.mocked(mockSurface4.exportBundle).mockResolvedValue({
       targetDirectory: '/tmp/target-repo',
-      copiedFiles: ['/tmp/target-repo/README.md']
+      copiedFiles: ['/tmp/target-repo/POSTMAN_ONBOARDING.md']
     });
   });
 

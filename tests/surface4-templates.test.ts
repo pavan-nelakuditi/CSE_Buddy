@@ -64,6 +64,7 @@ describe('Surface 4 templates', () => {
     expect(content).toContain("environments-json: '[\"dev\",\"prod\"]'");
     expect(content).toContain("governance-mapping-json: '{\"payments\":\"Payments Governance\"}'");
     expect(content).toContain('uses: pavan-nelakuditi/postman-smoke-flow-action@main');
+    expect(content).toContain("'POSTMAN_ONBOARDING.md'");
   });
 
   it('renders the setup doc with configured environments', () => {
@@ -75,6 +76,7 @@ describe('Surface 4 templates', () => {
     });
 
     expect(content).toContain('# Payments API Postman Onboarding Bundle');
+    expect(content).toContain('`POSTMAN_ONBOARDING.md`');
     expect(content).toContain('`POSTMAN_API_KEY`');
     expect(content).toContain('## How To Use These Artifacts');
     expect(content).toContain('Option A: Start a new repository from the bundle');

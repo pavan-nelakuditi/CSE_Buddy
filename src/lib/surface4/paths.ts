@@ -15,5 +15,5 @@ export function getGeneratedOnboardingWorkflowRelativePath(): string {
 }
 
 export function getGeneratedSetupDocRelativePath(): string {
-  return 'README.md';
+  return 'POSTMAN_ONBOARDING.md';
 }

@@ -62,7 +62,7 @@ const surface4Api: Surface4Api = {
   },
   openReadme: (serviceKey) => {
     if (!serviceKey) {
-      throw new Error('Open README service key is unavailable.');
+      throw new Error('Open guide service key is unavailable.');
     }
     return ipcRenderer.invoke(surface4Channels.openReadme, serviceKey);
   },

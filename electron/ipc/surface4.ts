@@ -18,7 +18,7 @@ export function registerSurface4Ipc(): void {
   });
   ipcMain.handle(surface4Channels.openReadme, async (_event, serviceKey: string) => {
     if (!serviceKey) {
-      throw new Error('Open README service key is unavailable.');
+      throw new Error('Open guide service key is unavailable.');
     }
     const { setupDocPath } = await getSurface4BundlePaths(serviceKey);
     const message = await shell.openPath(setupDocPath);
