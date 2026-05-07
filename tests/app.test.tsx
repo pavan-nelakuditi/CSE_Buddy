@@ -86,6 +86,9 @@ describe('App', () => {
     vi.mocked(mockWorkspace.openPath).mockResolvedValue();
     vi.mocked(mockWorkspace.revealPath).mockResolvedValue();
     vi.mocked(mockSurface1.listAwsProfiles).mockResolvedValue([{ name: 'sandbox', source: 'config' }]);
+    vi.mocked(mockSurface1.testAwsConnection).mockResolvedValue({
+      region: 'us-east-1'
+    });
     vi.mocked(mockSurface2.saveDraft).mockResolvedValue({ draftPath: '/tmp/draft-flow.json' });
     vi.mocked(mockSurface2.exportFlow).mockResolvedValue({
       draftPath: '/tmp/draft-flow.json',
@@ -193,6 +196,129 @@ describe('App', () => {
 
     expect(await screen.findByText('Active service')).toBeInTheDocument();
     expect(screen.getByText('Generate a draft')).toBeInTheDocument();
+  });
+
+  it('renders long AWS Test access success feedback in the Connect to AWS status line before Discover services', async () => {
+    type AwsConnectionResult = Awaited<ReturnType<Surface1Api['testAwsConnection']>>;
+    let resolveConnection!: (value: AwsConnectionResult) => void;
+    const longArn =
+      'arn:aws:sts::123456789012:assumed-role/CseBuddyIntegrationAccessRoleWithANameLongEnoughToWrap/SessionNameWithLongUnbrokenIdentityForOverflowCoverage';
+    const longConnectedSummary = `Connected to us-east-1 as ${longArn} (account 123456789012).`;
+    vi.mocked(mockSurface1.testAwsConnection).mockReturnValue(
+      new Promise<AwsConnectionResult>((resolve) => {
+        resolveConnection = resolve;
+      })
+    );
+
+    render(<App />);
+
+    await userEvent.click(await screen.findByRole('button', { name: /import from aws api gateway/i }));
+    const testAccessButton = screen.getByRole('button', { name: /^test access$/i });
+    await userEvent.click(testAccessButton);
+
+    const loadingLine = await screen.findByText('Testing AWS access...');
+    const discoverServices = screen.getByText('Discover services');
+    const connectCard = screen.getByText('Connect to AWS').closest('.sequence-card');
+
+    expect(connectCard).not.toBeNull();
+    expect(within(connectCard as HTMLElement).getByText('Testing AWS access...')).toBeInTheDocument();
+    expect(testAccessButton.compareDocumentPosition(loadingLine) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(loadingLine.compareDocumentPosition(discoverServices) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    resolveConnection({
+      accountId: '123456789012',
+      arn: longArn,
+      region: 'us-east-1'
+    });
+
+    const successLine = await screen.findByText('AWS connection validated.');
+    const summaryLine = screen.getByText(longConnectedSummary);
+    const summaryStatusLine = summaryLine.closest('.status-line');
+    const updatedConnectCard = screen.getByText('Connect to AWS').closest('.sequence-card');
+
+    expect(updatedConnectCard).not.toBeNull();
+    expect(within(updatedConnectCard as HTMLElement).getByText('AWS connection validated.')).toBeInTheDocument();
+    expect(within(updatedConnectCard as HTMLElement).getByText(longConnectedSummary)).toBeInTheDocument();
+    expect(summaryStatusLine).not.toBeNull();
+    expect(summaryStatusLine as HTMLElement).toHaveClass('status-line', 'success');
+    expect(updatedConnectCard as HTMLElement).toContainElement(summaryStatusLine as HTMLElement);
+    expect(successLine.compareDocumentPosition(discoverServices) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(summaryLine.compareDocumentPosition(discoverServices) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getAllByText('AWS connection validated.')).toHaveLength(1);
+    expect(screen.getAllByText(longConnectedSummary)).toHaveLength(1);
+  });
+
+  it('renders AWS Test access failure feedback before Discover services', async () => {
+    vi.mocked(mockSurface1.testAwsConnection).mockRejectedValue(new Error('Access denied for sandbox profile'));
+
+    render(<App />);
+
+    await userEvent.click(await screen.findByRole('button', { name: /import from aws api gateway/i }));
+    const testAccessButton = screen.getByRole('button', { name: /^test access$/i });
+    await userEvent.click(testAccessButton);
+
+    const errorLine = await screen.findByText('Access denied for sandbox profile');
+    const discoverServices = screen.getByText('Discover services');
+    const connectCard = screen.getByText('Connect to AWS').closest('.sequence-card');
+
+    expect(connectCard).not.toBeNull();
+    expect(within(connectCard as HTMLElement).getByText('Access denied for sandbox profile')).toBeInTheDocument();
+    expect(testAccessButton.compareDocumentPosition(errorLine) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(errorLine.compareDocumentPosition(discoverServices) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getAllByText('Access denied for sandbox profile')).toHaveLength(1);
+    expect(screen.queryByText(/Connected to/)).not.toBeInTheDocument();
+  });
+
+  it('clears AWS Test access feedback when connection inputs change', async () => {
+    render(<App />);
+
+    await userEvent.click(await screen.findByRole('button', { name: /import from aws api gateway/i }));
+    await userEvent.click(screen.getByRole('button', { name: /^test access$/i }));
+
+    expect(await screen.findByText('AWS connection validated.')).toBeInTheDocument();
+    expect(screen.getByText(/Connected to us-east-1/)).toBeInTheDocument();
+
+    await userEvent.clear(screen.getByLabelText(/region/i));
+    await userEvent.type(screen.getByLabelText(/region/i), 'us-west-2');
+
+    expect(screen.queryByText('AWS connection validated.')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Connected to us-east-1/)).not.toBeInTheDocument();
+  });
+
+  it('keeps pending AWS Test access feedback scoped when another AWS action runs', async () => {
+    type AwsConnectionResult = Awaited<ReturnType<Surface1Api['testAwsConnection']>>;
+    let resolveConnection!: (value: AwsConnectionResult) => void;
+    vi.mocked(mockSurface1.testAwsConnection).mockReturnValue(
+      new Promise<AwsConnectionResult>((resolve) => {
+        resolveConnection = resolve;
+      })
+    );
+    vi.mocked(mockSurface1.listAwsApis).mockResolvedValue([]);
+
+    render(<App />);
+
+    await userEvent.click(await screen.findByRole('button', { name: /import from aws api gateway/i }));
+    await userEvent.click(screen.getByRole('button', { name: /^test access$/i }));
+    await userEvent.click(screen.getByRole('button', { name: /^load apis$/i }));
+
+    expect(await screen.findByText('Loaded 0 REST/HTTP API(s).')).toBeInTheDocument();
+
+    resolveConnection({
+      accountId: '123456789012',
+      arn: 'arn:aws:iam::123456789012:user/cse-buddy',
+      region: 'us-east-1'
+    });
+
+    const connectCard = screen.getByText('Connect to AWS').closest('.sequence-card');
+
+    expect(connectCard).not.toBeNull();
+    expect(await within(connectCard as HTMLElement).findByText('AWS connection validated.')).toBeInTheDocument();
+    expect(
+      within(connectCard as HTMLElement).getByText(
+        /Connected to us-east-1 as arn:aws:iam::123456789012:user\/cse-buddy/
+      )
+    ).toBeInTheDocument();
+    expect(screen.getByText('Loaded 0 REST/HTTP API(s).')).toBeInTheDocument();
   });
 
   it('moves from Surface 2 to Surface 3 after exporting flow.yaml', async () => {

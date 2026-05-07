@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { Surface2Workspace } from './components/Surface2Workspace.js';
 import { Surface3Workspace } from './components/Surface3Workspace.js';
@@ -19,8 +19,20 @@ type SourceMode = 'upload' | 'aws';
 type CatalogFilter = 'all' | 'imported' | 'warnings' | 'skipped' | 'failed';
 type SurfaceId = 'surface1' | 'surface2' | 'surface3' | 'surface4';
 type SurfaceStage = 'current' | 'ready' | 'blocked' | 'complete';
+type AwsConnectionFeedback = {
+  loading: string;
+  message: string;
+  error: string;
+  summary: string;
+};
 
 const DEFAULT_REGION = 'us-east-1';
+const EMPTY_AWS_CONNECTION_FEEDBACK: AwsConnectionFeedback = {
+  loading: '',
+  message: '',
+  error: '',
+  summary: ''
+};
 const SURFACE_OVERVIEW: Record<SurfaceId, { title: string; description: string }> = {
   surface1: {
     title: 'Surface 1',
@@ -207,7 +219,6 @@ export default function App(): ReactElement {
   const [profiles, setProfiles] = useState<AwsProfile[]>([]);
   const [selectedProfile, setSelectedProfile] = useState<string>('');
   const [region, setRegion] = useState(DEFAULT_REGION);
-  const [connectionSummary, setConnectionSummary] = useState<string>('');
   const [apis, setApis] = useState<AwsApiSummary[]>([]);
   const [selectedApiId, setSelectedApiId] = useState<string>('');
   const [selectedGatewayType, setSelectedGatewayType] = useState<AwsGatewayType>('REST');
@@ -218,10 +229,17 @@ export default function App(): ReactElement {
   const [bulkCatalog, setBulkCatalog] = useState<ServiceCatalog | null>(null);
   const [selectedCatalogSpec, setSelectedCatalogSpec] = useState<SpecContext | null>(null);
   const [catalogFilter, setCatalogFilter] = useState<CatalogFilter>('all');
+  const [awsConnectionFeedback, setAwsConnectionFeedback] = useState<AwsConnectionFeedback>(EMPTY_AWS_CONNECTION_FEEDBACK);
   const [message, setMessage] = useState<string>('');
   const [error, setError] = useState<string>('');
   const [loading, setLoading] = useState<string>('');
+  const awsConnectionRequestId = useRef(0);
   const activeWorkspacePath = workspaceState?.currentWorkspacePath;
+
+  function clearAwsConnectionFeedback(): void {
+    awsConnectionRequestId.current += 1;
+    setAwsConnectionFeedback(EMPTY_AWS_CONNECTION_FEEDBACK);
+  }
 
   function resetWorkspaceSession(): void {
     setCurrentSurface('surface1');
@@ -230,12 +248,12 @@ export default function App(): ReactElement {
     setBulkCatalog(null);
     setSelectedCatalogSpec(null);
     setCatalogFilter('all');
-    setConnectionSummary('');
     setApis([]);
     setSelectedApiId('');
     setSelectedGatewayType('REST');
     setStages([]);
     setSelectedStage('');
+    clearAwsConnectionFeedback();
     setMessage('');
     setError('');
     setLoading('');
@@ -387,6 +405,7 @@ export default function App(): ReactElement {
   }
 
   async function handlePickUpload(): Promise<void> {
+    clearAwsConnectionFeedback();
     setError('');
     setMessage('');
     setSingleResult(null);
@@ -397,6 +416,7 @@ export default function App(): ReactElement {
   }
 
   async function handleUploadImport(): Promise<void> {
+    clearAwsConnectionFeedback();
     if (!selectedUploadPath) {
       setError('Choose an OpenAPI file before importing.');
       return;
@@ -418,20 +438,42 @@ export default function App(): ReactElement {
   }
 
   async function handleTestConnection(): Promise<void> {
-    setLoading('Testing AWS access...');
+    const requestId = awsConnectionRequestId.current + 1;
+    awsConnectionRequestId.current = requestId;
+    setAwsConnectionFeedback({
+      loading: 'Testing AWS access...',
+      message: '',
+      error: '',
+      summary: ''
+    });
+    setLoading('');
     setError('');
     setMessage('');
     try {
       const result = await window.surface1.testAwsConnection(profileValue, region);
-      setConnectionSummary(
-        `Connected to ${result.region} as ${result.arn ?? 'unknown identity'}${result.accountId ? ` (account ${result.accountId})` : ''}.`
-      );
-      setMessage('AWS connection validated.');
+      if (requestId !== awsConnectionRequestId.current) {
+        return;
+      }
+      setAwsConnectionFeedback({
+        loading: '',
+        message: 'AWS connection validated.',
+        error: '',
+        summary: `Connected to ${result.region} as ${result.arn ?? 'unknown identity'}${result.accountId ? ` (account ${result.accountId})` : ''}.`
+      });
     } catch (err) {
-      setError(formatError(err));
-      setConnectionSummary('');
+      if (requestId !== awsConnectionRequestId.current) {
+        return;
+      }
+      setAwsConnectionFeedback({
+        loading: '',
+        message: '',
+        error: formatError(err),
+        summary: ''
+      });
     } finally {
-      setLoading('');
+      if (requestId === awsConnectionRequestId.current) {
+        setAwsConnectionFeedback((current) => ({ ...current, loading: '' }));
+      }
     }
   }
 
@@ -719,7 +761,13 @@ export default function App(): ReactElement {
                 <div className="form-grid">
                   <label className="field">
                     <span>AWS profile</span>
-                    <select value={selectedProfile} onChange={(event) => setSelectedProfile(event.target.value)}>
+                    <select
+                      value={selectedProfile}
+                      onChange={(event) => {
+                        setSelectedProfile(event.target.value);
+                        clearAwsConnectionFeedback();
+                      }}
+                    >
                       <option value="">Use default credential chain</option>
                       {profiles.map((profile) => (
                         <option key={profile.name} value={profile.name}>
@@ -731,7 +779,14 @@ export default function App(): ReactElement {
 
                   <label className="field">
                     <span>Region</span>
-                    <input value={region} onChange={(event) => setRegion(event.target.value)} placeholder="us-east-1" />
+                    <input
+                      value={region}
+                      onChange={(event) => {
+                        setRegion(event.target.value);
+                        clearAwsConnectionFeedback();
+                      }}
+                      placeholder="us-east-1"
+                    />
                   </label>
                 </div>
 
@@ -740,6 +795,11 @@ export default function App(): ReactElement {
                     Test access
                   </button>
                 </div>
+
+                {awsConnectionFeedback.loading ? <p className="status-line">{awsConnectionFeedback.loading}</p> : null}
+                {awsConnectionFeedback.summary ? <p className="status-line success">{awsConnectionFeedback.summary}</p> : null}
+                {awsConnectionFeedback.message ? <p className="status-line success">{awsConnectionFeedback.message}</p> : null}
+                {awsConnectionFeedback.error ? <p className="status-line error">{awsConnectionFeedback.error}</p> : null}
               </div>
 
               <div className="sequence-card">
@@ -762,8 +822,6 @@ export default function App(): ReactElement {
                 </div>
               </div>
             </div>
-
-            {connectionSummary ? <p className="status-line success">{connectionSummary}</p> : null}
 
             {awsMode === 'single' ? (
               <>
