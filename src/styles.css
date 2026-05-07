@@ -505,9 +505,13 @@ h4 {
 
 .status-line {
   margin: 0;
+  min-width: 0;
+  max-width: 100%;
   border-radius: 16px;
   padding: 0.9rem 1rem;
   background: rgba(255, 255, 255, 0.12);
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .sequence-stack {
@@ -602,6 +606,21 @@ h4 {
 
 .left-rail .status-line {
   color: #f5f7fb;
+}
+
+.left-rail .sequence-card .status-line {
+  background: rgba(31, 36, 48, 0.06);
+  color: var(--ink-strong);
+}
+
+.left-rail .sequence-card .status-line.success {
+  background: var(--success-soft);
+  color: #0d6b4b;
+}
+
+.left-rail .sequence-card .status-line.error {
+  background: rgba(235, 87, 87, 0.14);
+  color: #b42318;
 }
 
 .hero-stats,
