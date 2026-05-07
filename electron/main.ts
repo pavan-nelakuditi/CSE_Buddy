@@ -1,5 +1,4 @@
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 
 import { app, BrowserWindow } from 'electron';
 
@@ -9,16 +8,15 @@ import { registerSurface2Ipc } from './ipc/surface2.js';
 import { registerSurface3Ipc } from './ipc/surface3.js';
 import { registerSurface4Ipc } from './ipc/surface4.js';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
 function createWindow(): BrowserWindow {
-  const appRoot = path.resolve(__dirname, '..', '..');
+  const appRoot = app.getAppPath();
+  const appIconPath = path.resolve(appRoot, 'build', 'icon.png');
   const win = new BrowserWindow({
     width: 1440,
     height: 980,
     minWidth: 1100,
     minHeight: 800,
+    icon: appIconPath,
     show: false,
     backgroundColor: '#f5f0e8',
     webPreferences: {
