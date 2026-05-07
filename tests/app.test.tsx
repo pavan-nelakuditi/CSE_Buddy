@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -143,6 +143,7 @@ describe('App', () => {
     await userEvent.click(screen.getByRole('button', { name: /demo-workspace/i }));
 
     await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'CSE Buddy' })).toBeInTheDocument();
       expect(screen.getByRole('heading', { name: 'Surface 1' })).toBeInTheDocument();
       expect(screen.getByText('/tmp/demo-workspace')).toBeInTheDocument();
     });
@@ -296,7 +297,9 @@ describe('App', () => {
     await userEvent.click(await screen.findByRole('button', { name: /confirm and export flow\.yaml/i }));
 
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: 'Surface 3' })).toBeInTheDocument();
+      const brand = screen.getByRole('heading', { name: 'CSE Buddy' }).closest('.brand');
+      expect(brand).not.toBeNull();
+      expect(within(brand as HTMLElement).getByRole('heading', { name: 'Surface 3' })).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /save cicd config/i })).toBeInTheDocument();
     });
   });
@@ -384,7 +387,12 @@ describe('App', () => {
     await userEvent.click(saveConfigButton);
 
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: 'Surface 4' })).toBeInTheDocument();
+      const brand = screen.getByRole('heading', { name: 'CSE Buddy' }).closest('.brand');
+      expect(brand).not.toBeNull();
+      expect(within(brand as HTMLElement).getByRole('heading', { name: 'Surface 4' })).toBeInTheDocument();
+      expect(
+        within(brand as HTMLElement).getByText('Generate the staged GitHub onboarding bundle from the approved service inputs.')
+      ).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /generate git artifacts/i })).toBeInTheDocument();
     });
   });
