@@ -21,6 +21,24 @@ type SurfaceId = 'surface1' | 'surface2' | 'surface3' | 'surface4';
 type SurfaceStage = 'current' | 'ready' | 'blocked' | 'complete';
 
 const DEFAULT_REGION = 'us-east-1';
+const SURFACE_OVERVIEW: Record<SurfaceId, { title: string; description: string }> = {
+  surface1: {
+    title: 'Surface 1',
+    description: 'Acquire and normalize one OpenAPI spec per service before the flow engine takes over.'
+  },
+  surface2: {
+    title: 'Surface 2',
+    description: 'Draft, refine, and export the happy-path smoke flow for the active service.'
+  },
+  surface3: {
+    title: 'Surface 3',
+    description: 'Save runtime URLs and onboarding configuration for merge-to-main automation.'
+  },
+  surface4: {
+    title: 'Surface 4',
+    description: 'Generate the staged GitHub onboarding bundle from the approved service inputs.'
+  }
+};
 
 function formatError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -269,6 +287,7 @@ export default function App(): ReactElement {
   );
   const activeSpecContext = selectedCatalogSpec ?? singleResult;
   const progressSteps = useMemo(() => getProgressSteps(activeSpecContext, currentSurface), [activeSpecContext, currentSurface]);
+  const surfaceOverview = SURFACE_OVERVIEW[currentSurface];
 
   const profileValue = selectedProfile || undefined;
 
@@ -593,9 +612,14 @@ export default function App(): ReactElement {
     <div className="app-shell">
       <aside className="left-rail">
         <div className="brand">
-          <p className="eyebrow">CSE Buddy</p>
-          <h1>Surface 1</h1>
-          <p>Acquire and normalize one OpenAPI spec per service before the flow engine takes over.</p>
+          <h1>CSE Buddy</h1>
+          <div className="brand-surface">
+            <p className="eyebrow" id="current-surface-label">Current surface</p>
+            <h2 id="current-surface-title" aria-describedby="current-surface-label">
+              {surfaceOverview.title}
+            </h2>
+          </div>
+          <p>{surfaceOverview.description}</p>
         </div>
 
         <div className="selection-card">
